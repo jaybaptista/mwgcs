@@ -163,6 +163,7 @@ class Einasto():
     
     def analyticSlope(self, radii, Rs=None, logrho2=None, alpha=None):
         mass = [self.mass(r_i, Rs, logrho2, alpha) for r_i in radii]
+        
         return [self.density_integrand(r_i, Rs, logrho2, alpha) for r_i in radii] * radii / mass
     
     def getVmax(self):
@@ -203,9 +204,9 @@ class MassProfile():
             self.sh_vel = sim.rs[sh_id, snap]['v']
         
         self.rvir = sim.rs[sh_id, snap]['rvir']
-        self.eps = sim.params['eps']
+        self.eps = sim.params['eps'] / sim.params['h100']
         self.h100 = sim.params['h100']
-        self.mp = sim.params['mp']
+        self.mp = sim.params['mp'] / sim.params['h100']
         
         self.bins_ok = False
         

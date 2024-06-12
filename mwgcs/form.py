@@ -3,6 +3,8 @@ from scipy.integrate import quad
 from scipy.interpolate import interp1d
 from scipy.stats import norm 
 
+from IPython import embed
+
 mass_light_ratio = 2.
 
 
@@ -38,6 +40,7 @@ def sampleMilkyWayGCMF(ms, Mmin = 1e3, Mmax = 1e7):
     
     accumulated_mass  = [inv_cdf(np.random.uniform(0, 1))]
     last_sampled_mass = accumulated_mass[0]
+
     
     while np.sum(accumulated_mass) < gc_peak_mass:
         # sample a mass
@@ -88,7 +91,7 @@ def sampleDwarfGCMF(ms):
     
     accumulated_mass  = [inv_cdf(np.random.uniform(0, 1))]
     last_sampled_mass = accumulated_mass[0]
-    
+        
     while np.sum(accumulated_mass) < gc_peak_mass:
         # sample a mass
         sampled_mass = inv_cdf(np.random.uniform(0, 1))
