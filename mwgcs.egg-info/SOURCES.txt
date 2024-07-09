@@ -1,0 +1,15 @@
+README.md
+setup.py
+mwgcs/__init__.py
+mwgcs/_tmp.py
+mwgcs/config.py
+mwgcs/evolve.py
+mwgcs/fit.py
+mwgcs/form.py
+mwgcs/sym.py
+mwgcs/track.py
+mwgcs.egg-info/PKG-INFO
+mwgcs.egg-info/SOURCES.txt
+mwgcs.egg-info/dependency_links.txt
+mwgcs.egg-info/requires.txt
+mwgcs.egg-info/top_level.txt
