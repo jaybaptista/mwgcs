@@ -7,6 +7,9 @@ from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 from scipy.special import gamma, gammaincc
 import gravitree
+import jax
+import jax.numpy as jnp
+import jax.scipy as jsc
 
 class NFW():
     """
@@ -44,22 +47,6 @@ class NFW():
     
     def analyticPotential(self, r):
         return - (4 * np.pi * c.G * self.rho0 * (u.Msun / u.kpc**3) * (self.Rs * u.kpc)**3 / r) * np.log(1 + (r / (self.Rs * u.kpc)).decompose().value)
-    
-    def getTidalTensor(self, r):
-        # REPLACE THIS WITH GALA'S HESSIAN (mathematica one here is wrong)
-        # !!!
-        #
-        #
-        
-        # a = - c.G * self.mvir / (np.log(1+self.conc) - self.conc/(1+self.conc))
-        # H_rr =  (a/r**3) * (((r * (3*r + 2 * self.Rs))/(r+self.Rs)**2) - 2*np.log(((r+self.Rs) / self.Rs).value))
-        
-        H_rr = 4 * np.pi * c.G * self.rho0 * (self.Rs * u.kpc)**3 * (u.Msun / u.kpc**3) * (r*(3*r + 2 * (self.Rs * u.kpc)) - 2. * (r + (self.Rs * u.kpc))**2 * np.log(((r + (self.Rs * u.kpc))/(self.Rs * u.kpc)).value)) / (r**3 * (r + (self.Rs * u.kpc))**2)
-        
-        H_rr = H_rr.to(u.Gyr**(-2)).value
-        H_ij = np.diag(np.array([H_rr, 0, 0]))
-        tensor = (-(1/3)*np.trace(H_ij) * np.identity(3) + H_ij) * (u.Gyr**(-2))
-        return tensor
 
 class Einasto():
     """

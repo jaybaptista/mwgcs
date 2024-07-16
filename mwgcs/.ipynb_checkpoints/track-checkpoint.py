@@ -14,7 +14,7 @@ import symlib
 
 from .sym import Simulation
 from .form import lognorm_hurdle, sampleMilkyWayGCMF, sampleDwarfGCMF
-from .evolve import tidalRadius, getMassLossRate, getTidalTimescale, getTidalFrequency, getLambda
+# from .evolve import tidalRadius, getMassLossRate, getTidalTimescale, getTidalFrequency, getLambda
 from .fit import MassProfile
 
 def spawnSubhaloGC(ms):
@@ -65,45 +65,45 @@ class GCSystem():
         self.profile = MassProfile(self.sim, self.infall_snap, self.rsid)
         _ = self.profile.fit()
 
-    def evolve(self, index, snap=None):
-        # index here is the index of the tag_idx array
-        if snap is None:
-            snap = self.sim.buffer_snap
+#     def evolve(self, index, snap=None):
+#         # index here is the index of the tag_idx array
+#         if snap is None:
+#             snap = self.sim.buffer_snap
         
-        self._t = np.zeros(len(self.snaps)+1)
-        self._r = np.zeros(len(self.snaps)+1)
-        self._rt = np.zeros(len(self.snaps)+1)
-        self._lam = np.zeros(len(self.snaps)+1)
+#         self._t = np.zeros(len(self.snaps)+1)
+#         self._r = np.zeros(len(self.snaps)+1)
+#         self._rt = np.zeros(len(self.snaps)+1)
+#         self._lam = np.zeros(len(self.snaps)+1)
         
-        self.evolved_mass = np.zeros(len(self.snaps)+1) + self.gcm[index]
-        self.tidal_radii = np.zeros(len(self.snaps)+1)
+#         self.evolved_mass = np.zeros(len(self.snaps)+1) + self.gcm[index]
+#         self.tidal_radii = np.zeros(len(self.snaps)+1)
         
-        for i, sn in tqdm(enumerate(self.snaps[1:])):
-            _particles = self.sim.getParticles(sn)[self.rsid]
-            pos = _particles["x"][self.tag_idx[index]]
-            _dist = np.sqrt(np.sum((pos - self.sim.rs[self.rsid, sn]['x'])**2))
-            _mass = self.evolved_mass[i-1]
-            self.profile = MassProfile(self.sim, sn, self.rsid)
+#         for i, sn in tqdm(enumerate(self.snaps[1:])):
+#             _particles = self.sim.getParticles(sn)[self.rsid]
+#             pos = _particles["x"][self.tag_idx[index]]
+#             _dist = np.sqrt(np.sum((pos - self.sim.rs[self.rsid, sn]['x'])**2))
+#             _mass = self.evolved_mass[i-1]
+#             self.profile = MassProfile(self.sim, sn, self.rsid)
             
-            r_tidal = tidalRadius(_dist, _mass, self.profile)
-            _mvir = self.sim.rs[self.rsid, snap]["m"]
+#             r_tidal = tidalRadius(_dist, _mass, self.profile)
+#             _mvir = self.sim.rs[self.rsid, snap]["m"]
             
-            mass_loss = getMassLossRate(_mass, _mvir, r_tidal) * self.dt[i]
-            freq = getTidalFrequency(_mvir, r_tidal)
-            timescale = getTidalTimescale(_mass, _mvir, r_tidal)
+#             mass_loss = getMassLossRate(_mass, _mvir, r_tidal) * self.dt[i]
+#             freq = getTidalFrequency(_mvir, r_tidal)
+#             timescale = getTidalTimescale(_mass, _mvir, r_tidal)
             
-            self.tidal_radii[i] = tidalRadius(_dist, _mass, self.profile)
-            print("dist [kpc]:", _dist)
-            print("mass lost [Msun]:", mass_loss)
-            print("time elapsed [Gyr]: ", self.dt[i])
-            print("tidal freq [Hz]: ", freq)
-            print("tidal timescale [Gyr]:", timescale)
-            print("tidal radius [kpc]:", r_tidal)
+#             self.tidal_radii[i] = tidalRadius(_dist, _mass, self.profile)
+#             print("dist [kpc]:", _dist)
+#             print("mass lost [Msun]:", mass_loss)
+#             print("time elapsed [Gyr]: ", self.dt[i])
+#             print("tidal freq [Hz]: ", freq)
+#             print("tidal timescale [Gyr]:", timescale)
+#             print("tidal radius [kpc]:", r_tidal)
             
-            self.evolved_mass[i] = self.gcm[index] + mass_loss
-            self._t[i] += dt
-            self._r[i] = _dist
-            self._rt[i] = r_tidal 
-            self._lam[i] = getLambda(self.evolved_mass[i], r_tidal)
+#             self.evolved_mass[i] = self.gcm[index] + mass_loss
+#             self._t[i] += dt
+#             self._r[i] = _dist
+#             self._rt[i] = r_tidal 
+#             self._lam[i] = getLambda(self.evolved_mass[i], r_tidal)
 
-        print("done")
+#         print("done")
