@@ -397,7 +397,7 @@ class MassProfile():
         return bin_radius, bin_density
 
     def fit(self):
-        r, rho = self.density_rs() # fit the desnity profile based on rockstar binning
+        r, rho = self.density() # fit the desnity profile based on rockstar binning
         
         # mask out particles within the convergence radius
         mask = r > self.r_conv
