@@ -81,7 +81,7 @@ class Einasto():
         """
         return 1.715 * (self.alpha**(-.00183)) * (self.alpha + 0.0817)**(-.179488)
         
-    def density(self, r, log=False):
+    def density(self, r, alpha=None, Rs=None, logScaleDensity=None):
         """
         Analytic form of the density profile
 
@@ -104,15 +104,46 @@ class Einasto():
         float
             Density at radius r
         """
-        
-        Rmax = self.A() * self.Rs
-        scaleDensity = 10**self.logScaleDensity
-        rho = scaleDensity * np.exp(-(2 / self.alpha) * (((self.A() * r) / Rmax)**(self.alpha) - 1))
 
-        if log:
-            return np.log10(rho)
+        if alpha is None:
+            alpha = self.alpha
+        if Rs is None:
+            Rs = self.Rs
+        if logScaleDensity is None:
+            logScaleDensity = self.logScaleDensity
         
+        
+        Rmax = self.A() * Rs
+        scaleDensity = 10**logScaleDensity
+        rho = scaleDensity * np.exp(-(2 / alpha) * (((self.A() * r) / Rmax)**(alpha) - 1))
+
         return rho
+    
+    def logDensity(self, r, alpha=None, Rs=None, logScaleDensity=None):
+        """
+        Logarithm of the density profile
+
+        Parameters
+        ----------
+        r : float
+            Radius at which to evaluate the density profile
+        
+        Rs : float (optional, default=None)
+            Scale radius of the Einasto profile
+        
+        logScaleDensity : float (optional, default=None)
+            Log of the density at Rs
+        
+        alpha : float (optional, default=None)
+            Shape parameter of the Einasto profile
+
+        Returns
+        -------
+        float
+            Logarithm of the density at radius r
+        """
+        return np.log10(self.density(r, alpha, Rs, logScaleDensity))
+
     
     def mass(self, r):
         """
@@ -409,7 +440,7 @@ class MassProfile():
         self.logdata = np.log10(np.array(rho)[mask])
 
         popt, pcov = curve_fit(
-                    self.profile.density,
+                    self.profile.logDensity,
                     self.bins,
                     self.logdata,
                     p0=[.18, 20, .6], # some random values
