@@ -16,75 +16,57 @@ class NFW():
     This is a Profile class for an NFW profile
     """
     
-    def __init__(self, mvir, rvir, conc):
+    def __init__(self, mvir, rvir, c):
         
         self.type = "nfw"
-        
-        # set up parameters
         self.mvir = mvir
         self.rvir = rvir
-        self.conc = conc
+        self.c = c        
+        self.Rs = self.rvir / self.c
         
-        # calculate aux params
-        
-        self.Rs = self.rvir / self.conc
-        
-        # units of density is Msun/kpc3
-        self.rho0 = (
-            self.mvir * u.Msun / \
-            (4 * np.pi * (self.Rs * u.kpc)**3 * \
-             (np.log(1+self.conc) - (self.conc/(1+self.conc))))).value
+        self.scaleDensity = (
+            self.mvir / \
+            (4 * np.pi * (self.Rs)**3 * \
+             (np.log(1+self.c) - (self.c/(1+self.c))))).value
         
     def mass(self, r):
-        return 4 * np.pi * self.rho0 * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
+        return 4 * np.pi * self.scaleDensity * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
     
     def density(self, r):
-        return self.rho0 / ((r/self.Rs) * (1+ (r/self.Rs))**2)
+        return self.scaleDensity / ((r/self.Rs) * (1+ (r/self.Rs))**2)
     
     def analyticSlope(self, r):
-        _mass = self.mass(r)
-        return 4 * np.pi * (r**3) * self.density(r) / _mass
+        _m = np.vectorize(self.mass)
+        m = _m(r)
+        return 4 * np.pi * (r**3) * self.density(r) / m
     
     def analyticPotential(self, r):
-        return - (4 * np.pi * c.G * self.rho0 * (u.Msun / u.kpc**3) * (self.Rs * u.kpc)**3 / r) * np.log(1 + (r / (self.Rs * u.kpc)).decompose().value)
+        return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))
 
 class Einasto():
     """
     This is a Profile class that holds all the helper functions for the fit
     """
-    def __init__(self, Rs=None, logrho2=None, alpha=None):
+    def __init__(self, alpha, scaleRadius, logScaleDensity):
         """
-        Sets initial fitting parameters
+        Sets initial fitting parameters.
 
         Parameters
         ----------
         Rs : float (optional, default=1)
-            Scale radius of the Einasto profile
+            Scale radius of the Einasto profile in kpc
         
-        logrho2 : float (optional, default=0)
-            Log of the density at Rs
+        logScaleDensity : float (optional, default=0)
+            Log of the density at Rs in Msun/kpc^3
         
         alpha : float (optional, default=0.18)
             Shape parameter of the Einasto profile
         """
-        
-        
-        
-        if alpha is None:
-            self.alpha = .18 
-        else:
-            self.alpha = alpha
-        
-        if Rs is None:
-            self.default_Rs = 1
-        else: 
-            self.default_Rs = Rs
-        
-        if logrho2 is None:
-            self.default_logrho2 = 0
-        else:
-            self.default_logrho2 = logrho2
-    
+
+        self.alpha = alpha
+        self.Rs = scaleRadius
+        self.logScaleDensity = logScaleDensity
+
     def A(self):
         """
         Assuming an Einasto profile, the radius at which the density curve is maximal is A times the scale radius Rs.
@@ -96,7 +78,7 @@ class Einasto():
         """
         return 1.715 * (self.alpha**(-.00183)) * (self.alpha + 0.0817)**(-.179488)
         
-    def density(self, r, Rs=None, logrho2=None, alpha=None):
+    def density(self, r, log=False):
         """
         Analytic form of the density profile
 
@@ -108,7 +90,7 @@ class Einasto():
         Rs : float (optional, default=None)
             Scale radius of the Einasto profile
         
-        logrho2 : float (optional, default=None)
+        logScaleDensity : float (optional, default=None)
             Log of the density at Rs
         
         alpha : float (optional, default=None)
@@ -119,64 +101,36 @@ class Einasto():
         float
             Density at radius r
         """
-        if Rs is None:
-            Rs = self.default_Rs
-        if logrho2 is None:
-            logrho2 = self.default_logrho2
-        if alpha is None:
-            alpha = self.alpha
         
-        # Rmax = 2.164 * Rs
-        Rmax = self.A() * Rs
-        return (10**logrho2) * np.exp(-(2 / self.alpha) * (((self.A() * r) / Rmax)**(self.alpha) - 1))
-    
-    def logdensity(self, r, Rs=None, logrho2=None, alpha=None):
-        """
-        Log of the density profile, used primarily for fitting
+        Rmax = self.A() * self.Rs
+        scaleDensity = 10**self.logScaleDensity
+        rho = scaleDensity * np.exp(-(2 / self.alpha) * (((self.A() * r) / Rmax)**(self.alpha) - 1))
 
-        Parameters
-        ----------
-        r : float
-            Radius at which to evaluate the density profile
+        if log:
+            return np.log10(rho)
         
-        Rs : float (optional, default=None)
-            Scale radius of the Einasto profile
-        
-        logrho2 : float (optional, default=None)
-            Log of the density at Rs
-        
-        alpha : float (optional, default=None)
-            Shape parameter of the Einasto profile
-        
-        Returns
-        -------
-        float
-            Log of the density at radius r
-        """
-        return np.log10(self.density(r, Rs, logrho2, alpha))
-
-    def density_integrand(self, r, Rs=None, logrho2=None, alpha=None):
-        """
-        Integrand used to compute enclosed mass of the profile
-        """
-        return self.density(r, Rs, logrho2, alpha) * 4 * np.pi * r**2
+        return rho
     
-    def mass(self, r, Rs=None, logrho2=None, alpha=None):
+    def mass(self, r):
         """
         Enclosed mass of the profile at radius r
         """
-        m = quad(self.density_integrand, 0, r, (Rs, logrho2, alpha))[0]
+        density_integrand = lambda r: self.density(r) * 4 * np.pi * r**2
+        m = quad(density_integrand, 0, r)[0]
         return m
     
-    def v_circ(self, r, Rs=None, logrho2=None, alpha=None):
+    def circularVelocity(self, r):
         """
-        Returns circular velocity at radius r
+        Returns circular velocity at radius r in kpc
         """
-        mass = self.mass(r, Rs, logrho2, alpha) * u.Msun
-        vel = ((c.G * mass / (r * u.kpc))**(1/2)).to(u.km / u.s).value
+        _g = c.G.to(u.km**3 / u.Msun / u.s**2).value
+        kpc_to_km = 3.086e16
+
+        mass = self.mass(r)
+        vel = np.sqrt(_g * mass / (r * kpc_to_km))
         return vel
     
-    def massSlope(self, radii, Rs=None, logrho2=None, alpha=None):
+    def massSlope(self, r):
         """
         Returns the mass slope given an array of radii(dlnm/dlnr)
 
@@ -199,70 +153,83 @@ class Einasto():
         interp1d
             Interpolated function of the mass slope
         """
-        mass = [self.mass(r_i, Rs, logrho2, alpha) for r_i in radii]
-        dlnr = np.gradient(radii, edge_order=2) / radii
-        dlnm = np.gradient(mass, edge_order=2) / mass
-        mass_profile = interp1d(radii, dlnm/dlnr)
+        # vectorize mass function
+        _m = np.vectorize(self.mass)
+
+        m = _m(r)
+        dlnr = np.gradient(r, edge_order=2) / r
+        dlnm = np.gradient(m, edge_order=2) / m
+
+        mass_profile = interp1d(r, dlnm/dlnr)
+
         return mass_profile
     
-    def analyticSlope(self, radii, Rs=None, logrho2=None, alpha=None):
-        mass = [self.mass(r_i, Rs, logrho2, alpha) for r_i in radii]
-        
-        return [self.density_integrand(r_i, Rs, logrho2, alpha) for r_i in radii] * radii / mass
-    
-    def getVmax(self):
+    def analyticSlope(self, r):
         """
-        Returns the maximum circular velocity of the Einasto profile
+        Returns the mass slope given
+        ----------        
+        radii : array
+            Array of radii at which to evaluate the mass slope
         """
 
-        radii = 10**np.linspace(-.5, 2.5)
-        velocities = [self.v_circ(r) for r in radii]
-        return np.max(velocities)
-    
-    def analyticPotential(self, r, m=1e12 * u.Msun):
-        
-        dn = 2 / self.alpha
-        n = 1 / self.alpha
-        s = (dn)**n * (r / self.default_Rs)
-        h = self.default_Rs * u.kpc / (dn)**n
-        
-        t1 = gammaincc(3*n, s**(1/n))
-        t2 = gammaincc(2*n, s**(1/n)) * s * (gamma(2*n) / gamma(3*n))
-        
-        return (c.G * m / (h * s)) * (1 - t1 + t2)
-    
-    def getHessianRR(self, r):
-        r = r * u.kpc
-        dn = 2 / self.alpha
-        n = 1 / self.alpha
-        s = ((dn)**n * (r / (self.default_Rs * u.kpc))).decompose().value
-        rs = self.default_Rs * u.kpc
-        
-        halo_mass = self.mass(1e3) * u.Msun # sorry phil this is just a messy way of getting the halo mass
-        
-        _a = (c.G * halo_mass / r**3) 
-        _b = np.exp(-s**(1/n)) * (s**2) * (dn**n * r * (-n + s**(1/n)) - (s**(1/n)**(1+n)) * rs)
-        _c = 2 * n**2 * rs * gammaincc(3*n, s**(1/n))
-        _d = n**2 * rs * gamma(3 * n)
-        
-        H_rr = _a * (- 2 + (_b + _c)/_d)
-        H_rr = H_rr.to(u.Gyr**(-2)).value
-        
-        return H_rr
-    
-    # create M(r) -> Phi(r)
-    # 
-    
-    
-    def analyticTidalTensor(self, r):
+        _m = np.vectorize(self.mass)
+        _rho = np.vectorize(self.density)
 
-        H_rr = self.getHessianRR(r.value)
-        
-        H_ij = np.diag(np.array([H_rr, 0, 0]))
-        tensor = (-(1/3)*np.trace(H_ij) * np.identity(3) + H_ij) * (u.Gyr**(-2))
-        return tensor
-        
+        m = _m(r)
+        rho = _rho(r)        
+
+        return 4 * np.pi * (r**2) * rho * (r / m)
     
+    def potential(self, q):
+        """
+        Returns the potential at q = [x, y, z]
+        """
+
+        r = jnp.sqrt(jnp.sum(q[0]**2 + q[1]**2 + q[2]**2))
+        _a = self.alpha
+        _g = c.G.to(u.kpc**3 / u.Gyr**2 / u.Msun).value
+        _tilde = (_a * self.Rs**_a / 2)**_a
+        scaleDensity = 10**self.logScaleDensity
+
+        def lowerIncompleteGamma(a, x, tilde=False):
+            base = jsc.special.gammainc(a, x) * jsc.special.gamma(a)
+
+            if tilde:
+                return base * _tilde
+            else:
+                return base
+        
+        def upperIncompleteGamma(a, x, tilde=False):
+            base = jsc.special.gammaincc(a, x) * jsc.special.gamma(a)
+
+            if tilde:
+                return base * _tilde
+            else:
+                return base
+
+        _sr = 2 * r**_a / (_a * self.Rs**_a)
+
+        tmp1 = 4*np.pi*_g*scaleDensity*jnp.exp(2/_a) / _a
+        tmp2 = (1/r) * lowerIncompleteGamma(3/_a, _sr, tilde=True)
+        tmp3 = upperIncompleteGamma(2/_a, _sr, tilde=True)
+
+        return tmp1 * (tmp2 + tmp3)
+    
+    def tidalTensor(self, q):
+        """
+        Returns the tidal tensor at position q = [x, y, z]
+        """
+        hessian = jax.hessian(self.potential, argnums=0)(q)
+        tt = -(1/3) * jnp.trace(hessian) * jnp.identity(3) + hessian
+        return tt
+    
+    def tidalStrength(self, q):
+        """
+        Returns the tidal strength at position q = [x, y, z]
+        """
+        lam = np.max(np.abs(jnp.linalg.eigvals(self.tidalTensor(q))))
+        return lam
+
 class MassProfile():
     """
     This class interacts with a Simulation object and references a subhalo and snapshot 
@@ -281,10 +248,8 @@ class MassProfile():
         params = sim.params
         
         self.type = "ein"
-        
         self.pos = p[sh_id]['x']
         self.vel = p[sh_id]['v']
-        
         self.sh_pos = sim.rs[sh_id, snap]['x']
         self.sh_vel = sim.rs[sh_id, snap]['v']
         self.rvir = sim.rs[sh_id, snap]['rvir']
@@ -300,10 +265,11 @@ class MassProfile():
         
         self.bins_ok = False
         
+        # This is bugged right now, need to fix ################
+
         part_limit_fit = 25
         resample_counter = 0
-        
-        # this is bugged right now:
+       
         while (subsample_frac > 0) and not self.bins_ok:
             n = len(self.pos) 
             rand_index = random.sample(range(n), int(subsample_frac * n))
@@ -328,7 +294,7 @@ class MassProfile():
                 
         self.dist = np.sqrt(np.sum((self.pos-self.sh_pos)**2, axis=1))
         self.r_conv = np.max(sim.getConvergenceRadius(snap))
-        self._ein = None
+        self.profile = Einasto(.18, 10, 6)
         
         self.z = sim.getRedshift(snap)
         
@@ -356,9 +322,10 @@ class MassProfile():
     def mass(self, r):
         return self.mp * self.particleCount(r)
     
-    def density(self, r, dr=.001):
+    def enclosedDensity(self, r, dr=.001):
         vol = (4*np.pi / 3) * (r**3 - (r-dr)**3)
         counts = 0
+        
         if self.boundOnly:
             counts = np.sum((self.dist < r) & (self.dist > (r-dr)) & self.bound)
         else:
@@ -366,84 +333,92 @@ class MassProfile():
         
         mass = counts * self.mp
         
-        return mass / vol
-    
-    def v_circ(self, r):
-        return (c.G * self.mass(r) * u.Msun / (r * u.kpc))**(1/2)
-    
-    def density_rs(self, bins=50):
-        mask = self.dist < self.rvir # cut on distance
+        rho = mass / vol
         
-        # edge case is when there are less particles than bins desired
+        return rho
+    
+    def circularVelocity(self, r):
+        _g = c.G.to(u.km**3 / u.Msun / u.s**2).value
+        kpc_to_km = 3.086e16
+        mass = self.mass(r)
+        vel = np.sqrt(_g * mass / (r * kpc_to_km))
+        return vel
+    
+    def density(self, bins=50):
+        
+        # Select particles within the virial radius
+        mask = self.dist < self.rvir
+        
+        # Edge case is when there are less particles than bins desired
         low_res = np.sum(mask) < bins
-        if low_res:
-            
-            bins = np.sum(mask)
-            print("low res", bins)
         
-        _dist = self.dist[mask] # only consider particles within rvir
+        if low_res: 
+            bins = np.sum(mask)
+            print("Subhalo has insufficient particle count, rebinning with ", bins, " bins")
+        
+        _d = self.dist[mask] # only consider particles within rvir
 
-        indices = np.argsort(_dist) # sort by radius
-        idx_bins = np.array_split(indices, bins) # split index bins roughly evenly
+        # bin particles by radius
+        sorted_indices = np.argsort(_d) # sort by radius
+        bin_idx = np.array_split(sorted_indices, bins) # split index bins roughly evenly
         bin_edges = np.concatenate(
             [
                 [0],
-                [_dist[i[-1]] for i in idx_bins] # rightmost bin edge
+                [_d[i[-1]] for i in bin_idx] # rightmost bin edge
             ]
         )
         bin_volume = (4*np.pi / 3) * ((bin_edges[1:])**3 - (bin_edges[:-1])**3)
         
-        self._rs_idx_bins = idx_bins
-        self._rs_bin_edges = bin_edges
-        self._rs_bin_volume = bin_volume
-        self._rs_bin_count = np.array([
+        self.bin_idx = bin_idx
+        self.bin_edges = bin_edges
+        self.bin_volume = bin_volume
+        self.bin_count = np.array([
             np.sum(
-                (_dist >= bin_edges[i]) & (_dist < bin_edges[i+1])) for i in range(len(bin_edges)-1)])
+                (_d >= bin_edges[i]) & (_d < bin_edges[i+1])) for i in range(len(bin_edges)-1)])
         
         if low_res:
-            self._rs_bin_count = np.ones(bins)
+            self.bin_count = np.ones(bins)
         
         # calculate the density in each bin
-        bin_density = np.array(self.mp * self._rs_bin_count / bin_volume)
+        bin_density = np.array(self.mp * self.bin_count / self.bin_volume)
 
         # get average radius in each bin
-        rad_bins = np.array_split(_dist[indices], bins) # split particles up by their sorted positions
-        avg_rad = np.array([np.mean(i) for i in rad_bins]) # get the mean of each bin, this is the radius used in the fit
+        _br = np.array_split(_d[sorted_indices], bins) # split particles up by their sorted positions
+        bin_radius = np.array([np.mean(i) for i in _br]) # get the mean of each bin, this is the radius used in the fit
         
-        return avg_rad, bin_density
+        return bin_radius, bin_density
 
-    def fit(self, ein=None):
-        if ein is None:
-            ein = Einasto()
-        self._ein = ein # remove this after debugging
-        radii, density_profile = self.density_rs() # fit the desnity profile based on rockstar binning
+    def fit(self):
+        r, rho = self.density_rs() # fit the desnity profile based on rockstar binning
         
-        # mask out the convergence radius
-        radial_mask = radii > self.r_conv
+        # mask out particles within the convergence radius
+        mask = r > self.r_conv
 
         # fit the density profile 
-        self.bins = np.array(radii)[radial_mask]
-        self.logdata = np.log10(np.array(density_profile)[radial_mask])
+        
+        self.bins = np.array(r)[mask]
+        
+        self.logdata = np.log10(np.array(rho)[mask])
 
-        popt, pcov = curve_fit(ein.logdensity,
-                       self.bins,
-                       self.logdata,
-                       p0=[20, .6, .18], # some random values
-                       maxfev = 10000
-                      )
+        popt, pcov = curve_fit(
+                    self.profile.density,
+                    self.bins,
+                    self.logdata,
+                    p0=[.18, 20, .6], # some random values
+                    maxfev = 10000
+                    )
         
-        _ein = Einasto(*popt)
+        self.profile = Einasto(*popt)
         
-        self._popt = popt
-        self._ein = _ein
-        
-        return _ein.density, _ein.mass, _ein.v_circ
+        self.profile_params = popt
     
-    def massSlope(self, radii):
-        mass = [self.mass(r_i) for r_i in radii]
-        dlnr = np.gradient(radii, edge_order=2) / radii
-        dlnm = np.gradient(mass, edge_order=2) / mass
-        mass_profile = interp1d(radii, dlnm/dlnr)
-        return mass_profile
-    
-    
+    def massSlope(self, r):
+        _m = np.vectorize(self.mass)
+        m = _m(r)
+
+        dlnr = np.gradient(r, edge_order=2) / r
+        dlnm = np.gradient(m, edge_order=2) / m
+
+        slope = interp1d(r, dlnm/dlnr)
+
+        return slope

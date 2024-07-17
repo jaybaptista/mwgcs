@@ -1,3 +1,4 @@
+LICENSE
 README.md
 setup.py
 mwgcs/__init__.py
