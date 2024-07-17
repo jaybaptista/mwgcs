@@ -11,6 +11,9 @@ import jax
 import jax.numpy as jnp
 import jax.scipy as jsc
 
+from gala.potential import PlummerPotential
+from gala.units import galactic
+
 class NFW():
     """
     This is a Profile class for an NFW profile
@@ -180,7 +183,7 @@ class Einasto():
 
         return 4 * np.pi * (r**2) * rho * (r / m)
     
-    def potential(self, q):
+    def potential(self, q, MW=True):
         """
         Returns the potential at q = [x, y, z]
         """
@@ -213,7 +216,12 @@ class Einasto():
         tmp2 = (1/r) * lowerIncompleteGamma(3/_a, _sr, tilde=True)
         tmp3 = upperIncompleteGamma(2/_a, _sr, tilde=True)
 
-        return tmp1 * (tmp2 + tmp3)
+
+        if MW:
+            _pot = PlummerPotential(m=4e10*u.Msun, b=1.6*u.kpc, units=galactic)
+            return _pot.value(q) + tmp1 * (tmp2 + tmp3)
+        else:
+            return tmp1 * (tmp2 + tmp3)
     
     def tidalTensor(self, q):
         """
