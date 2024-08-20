@@ -1,4 +1,8 @@
 import numpy as np
+import pyximport
+pyximport.install(setup_args={"script_args" : ["--verbose"]})
+from .cy_evolve import evolveMass
+import astropy.units as u
 
 # getMassLossRate, getTidalTimescale, getTidalFrequency
 
@@ -36,5 +40,28 @@ def getTidalTimescale(m, l):
 
 
 def getMassLossRate(m, tidalStrength):
-    rate = -1. * m / getTidalTimescale(m, tidalStrength)
+    rate = -1. * m / (10. * (m / 2e5)**(2/3) * (100 / np.sqrt(tidalStrength / 3)))
     return rate
+
+def CMassLoss(m0, tidalStrength, steps, dt):
+    # get tidalStrength into okay units
+    
+    tidalStrength = tidalStrength.to(u.Gyr**(-2)).value
+    tidalStrength = np.array(tidalStrength, dtype=np.double)
+    
+    dt = dt.to(u.Gyr).value
+    
+    masses = np.zeros(steps, dtype=np.double)
+    evolveMass(m0, tidalStrength, steps, dt, masses)
+    
+    return masses
+
+def mdot_gg23(m, tidalStrength, m_i=3.5e4):
+    x = .67
+    y = 1.33
+    _m_ref = -45 # msun/myr
+    m_ref = _m_ref * 1000
+
+    rate = m_ref * (m / m_i)**(1-y) * (m / (2e5))**(1-x) * getTidalFrequency(tidalStrength) / (0.32 * 1000)
+    return rate
+    
