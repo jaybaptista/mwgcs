@@ -219,7 +219,7 @@ class Einasto():
         Returns the potential at q = [x, y, z]
         """
 
-        r = jnp.sqrt(jnp.sum(q[0]**2 + q[1]**2 + q[2]**2))
+        r = jnp.sqrt(q[0]**2 + q[1]**2 + q[2]**2)
         _a = self.alpha
         _g = c.G.to(u.kpc**3 / u.Gyr**2 / u.Msun).value
         _tilde = (_a * self.Rs**_a / 2)**_a
