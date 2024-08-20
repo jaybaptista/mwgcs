@@ -28,7 +28,7 @@ class Simulation():
             The seed for the random number generator
         """
         # Set the seed
-        random.seed(seed) 
+        # random.seed(seed)
 
         # Set the simulation directory
         self.sim_dir = sim_dir

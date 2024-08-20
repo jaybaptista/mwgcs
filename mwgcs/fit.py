@@ -217,7 +217,7 @@ class Einasto():
         tmp2 = (1/r) * lowerIncompleteGamma(3/_a, _sr, tilde=True)
         tmp3 = upperIncompleteGamma(2/_a, _sr, tilde=True)
         
-        return tmp1 * (tmp2 + tmp3)
+        return tmp1 * (tmp2 + tmp3) * 0.9560776287794536 # conversion factor to km^2/s^2
     
     def tidalTensor(self, q, q_ext, ext_rvir, ext_ms, disrupt=True):
         """
