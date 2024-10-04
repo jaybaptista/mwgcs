@@ -268,6 +268,11 @@ class Einasto(Profile):
         rho = _rho(r)        
 
         return 4 * np.pi * (r**2) * rho * (r / m)
+    
+    def potential(self, q):
+        """
+        Returns the potential at q = [x, y, z]
+        """
 
 
         _a = self.alpha
