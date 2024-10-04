@@ -16,7 +16,6 @@ import jax.scipy as jsc
 from gala.potential import PlummerPotential
 from gala.units import galactic
 
-<<<<<<< HEAD
 
 ########################################################################################################
 
@@ -192,12 +191,6 @@ class Profile(abc.ABC):
         pass
 
 class Einasto(Profile):
-=======
-class Einasto():
-    """
-    This is a Profile class that holds all the helper functions for the fit
-    """
->>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
     def __init__(self, alpha, scaleRadius, logScaleDensity):
         """
         Sets initial fitting parameters.
@@ -275,23 +268,16 @@ class Einasto():
         rho = _rho(r)        
 
         return 4 * np.pi * (r**2) * rho * (r / m)
-<<<<<<< HEAD
-=======
     
     def potential(self, q):
         """
         Returns the potential at q = [x, y, z]
         """
->>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
 
 
         _a = self.alpha
-<<<<<<< HEAD
         # _g = 4.498502151469554e-06 # units of kpc^3/Gyr^2/Msun
         _g = 4.30091727e-06 # in units of kpc/Msun * (km/s)^2
-=======
-        _g = c.G.to(u.kpc**3 / u.Gyr**2 / u.Msun).value
->>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
         
         scaleDensity = 10**self.logScaleDensity
 
@@ -317,7 +303,6 @@ class Einasto():
         tmp1 = 4*np.pi*_g*scaleDensity*jnp.exp(2/_a) / _a
         tmp2 = (1/r) * lowerIncompleteGamma(3/_a, _sr, tilde=True)
         tmp3 = upperIncompleteGamma(2/_a, _sr, tilde=True)
-<<<<<<< HEAD
 
         return - tmp1 * (tmp2 + tmp3) 
         
@@ -342,59 +327,6 @@ class Einasto():
 #     def tidalTensor(self, q, q_ext, ext_rvir, ext_ms, disrupt=True):
 #         """
 #         Returns the tidal tensor at position q = [x, y, z] in an external potential.
-=======
-        
-        return tmp1 * (tmp2 + tmp3) * 0.9560776287794536 # conversion factor to km^2/s^2
-    
-    def tidalTensor(self, q, q_ext, ext_rvir, ext_ms, disrupt=True):
-        """
-        Returns the tidal tensor at position q = [x, y, z] in an external potential.
-
-        Parameters
-        ----------
-
-        ext_rvir -> virial radius of the host galaxy
-        ext_ms   -> stellar mass of the host galaxy
-        disrupt  -> has the subhalo disrupted
-        """
-        
-        ext_pot_hessian = np.zeros(shape=(3, 3))
-
-        def rh_rvir_relation(rvir, addScatter=True):
-            # Kravstov 2013
-            slope = .95
-            normalization = .015
-            scatter = 0.2 # dex
-            
-            rand = norm.rvs(
-                loc=0,
-                scale=0.2,
-                size=1) if addScatter else 0.
-            
-            log_rvir = np.log10(rvir)
-            log_rh = slope * log_rvir + rand + np.log10(normalization)
-            return 10**log_rh
-        
-        rh = rh_rvir_relation(ext_rvir)
-        
-        plummer_rc = rh / 1.3
-        
-        _pot = PlummerPotential(m=ext_ms*u.Msun, b=plummer_rc*u.kpc, units=galactic)
-        ext_pot_hessian = _pot.hessian(q_ext).to(u.Gyr**(-2)).value
-
-        subhalo_hessian = jax.hessian(self.potential, argnums=0)(q) if not disrupt else np.zeros(shape=(3, 3))
-        
-        hessian = subhalo_hessian + ext_pot_hessian
-        tt = -(1/3) * jnp.trace(hessian) * jnp.identity(3) + hessian
-        return tt
-    
-    def tidalStrength(self, q, q_ext, ext_rvir=300., ext_ms=1e11, disrupt=False):
-        """
-        Returns the tidal strength at position q = [x, y, z]
-        """
-        lam = np.max(np.abs(jnp.linalg.eigvals(self.tidalTensor(q, q_ext, ext_rvir, ext_ms, disrupt))))
-        return lam
->>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
 
 #         Parameters
 #         ----------
@@ -499,7 +431,6 @@ class NFW(Profile):
         
         eigenvalues, eigenvectors = np.linalg.eig(tidal_tensor)
 
-<<<<<<< HEAD
         l1 = eigenvalues[0] 
         l2 = eigenvalues[1]
         l3 = eigenvalues[2] # most negative eigenvalue? 
@@ -518,17 +449,6 @@ class NFW(Profile):
 #         self.rvir = rvir
 #         self.c = c        
 #         self.Rs = self.rvir / self.c
-=======
-        popt, pcov = curve_fit(
-                    self.profile.logDensity,
-                    self.bins,
-                    self.logdata,
-                    p0=[.18, 10, 5], # some random values
-                    bounds=((.1, 1.5, 2.5), (.2, 30., 7.)), 
-                    maxfev = 100000,
-                    nan_policy='omit'
-                    )
->>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
         
 #         self.scaleDensity = (
 #             self.mvir / \
@@ -557,7 +477,6 @@ def getTidalTensor(hess):
     tidal_tensor = hess - ((1/3) * jnp.trace(hess) * jnp.identity(3))
     return tidal_tensor
 
-<<<<<<< HEAD
 def getTidalStrength(tidal_tensor):
     """
     Returns the tidal strength at position q = [x, y, z]
@@ -599,41 +518,3 @@ def getTidalStrength(tidal_tensor):
     
 #     def analyticPotential(self, r):
 #         return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))
-=======
-        return slope
-
-###
-
-
-class NFW():
-    """
-    This is a Profile class for an NFW profile
-    """
-    
-    def __init__(self, mvir, rvir, c):
-        
-        self.type = "nfw"
-        self.mvir = mvir
-        self.rvir = rvir
-        self.c = c        
-        self.Rs = self.rvir / self.c
-        
-        self.scaleDensity = (
-            self.mvir / \
-            (4 * np.pi * (self.Rs)**3 * \
-             (np.log(1+self.c) - (self.c/(1+self.c))))).value
-        
-    def mass(self, r):
-        return 4 * np.pi * self.scaleDensity * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
-    
-    def density(self, r):
-        return self.scaleDensity / ((r/self.Rs) * (1+ (r/self.Rs))**2)
-    
-    def analyticSlope(self, r):
-        _m = np.vectorize(self.mass)
-        m = _m(r)
-        return 4 * np.pi * (r**3) * self.density(r) / m
-    
-    def analyticPotential(self, r):
-        return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))
->>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
