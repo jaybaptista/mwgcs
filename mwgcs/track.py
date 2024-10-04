@@ -77,9 +77,27 @@ class SymphonyTracker(TreeTracker):
         # add max_snap variable
         # snaps = np.arange(236)[ok_rs]
 
+<<<<<<< HEAD
         # self.disrupt_snap = np.arange(236)[ok_rs][-1]
 
         # self.snaps = np.arange(self.infall_snap, 236, step=1, dtype=int)
+=======
+        self.disrupt_snap = np.arange(236)[ok_rs][-1]
+
+        self.snaps = np.arange(self.infall_snap, 236, step=1, dtype=int)
+        
+        times = sim.cosmo.hubbleTime(sim.z)
+        times = times[self.snaps]
+        self.dt = times[1:] - times[:-1]
+        
+        # self.snaps = snaps[snaps >= self.infall_snap]
+
+        # talk to phil about this later
+        self.ms_infall = self.sim.um["m_star"][self.rsid, self.infall_snap]
+        
+        self.mgc = lognorm_hurdle(self.ms_infall)# system mass
+        self.gcm, self.gc_mass_range = sampleDwarfGCMF(self.mgc)
+>>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
         
         # times = sim.cosmo.hubbleTime(sim.z)
         # times = times[self.snaps]
@@ -108,6 +126,7 @@ class SymphonyTracker(TreeTracker):
 #             replace = False,
 #             p = prob)
         
+<<<<<<< HEAD
 
 #         # tag_idx is the particle index
 #         self.tag_idx = tag_idx
@@ -203,4 +222,100 @@ class SymphonyTracker(TreeTracker):
 #         print("done")
 
 ########################################################################################################
+=======
+        # tag_idx is the particle index
+        self.tag_idx = tag_idx
+        self.profile = MassProfile(self.sim, self.infall_snap, self.rsid)
+        _ = self.profile.fit()
+
+    def getPositions(self, index, snap=None):
+
+        # if snap is None:
+        #     snap = self.sim.buffer_snap # starts out being the infall_snap
+
+        self.t = np.zeros(len(self.snaps)) # self.snap runs from infall_snap to 235
+        self.q = np.zeros((3, len(self.snaps)))
+
+        for i, sn in enumerate(tqdm(self.snaps[1:])):
+                _particles = self.sim.getParticles(sn)[self.rsid] # call to symlib.Particles(sim_dir).read(snap, mode=mode)
+                pos = _particles["x"][self.tag_idx[index]] # tag_idx are the indices of GC tags
+                self.t[i+1] = self.t[i] + self.dt[i]
+                self.q[:, i] = pos
+
+        return self.t, self.q
+        
+
+    def evolve(self, index, snap=None):
+        # index here is the index of the tag_idx array
+        if snap is None:
+            snap = self.sim.buffer_snap
+        
+        self.t = np.zeros(len(self.snaps))
+        self.r = np.zeros(len(self.snaps))
+        self.lam = np.zeros(len(self.snaps))
+        self.potential_flag = np.ones(len(self.snaps)+1, dtype=bool)
+        self.profile_params = []
+        
+        self.evolved_mass = np.zeros(len(self.snaps)+1)
+        self.evolved_mass[0] = self.gcm[index]
+
+        # old way of doing this
+        for i, sn in tqdm(enumerate(self.snaps[1:])):
+            _particles = self.sim.getParticles(sn)[self.rsid]
+            pos = _particles["x"][self.tag_idx[index]]
+
+            subhalo_flag = sn >= self.disrupt_snap
+
+            potential_sh_id = self.rsid
+            
+            if subhalo_flag:
+                if sn == self.disrupt_snap:
+                    print('Subhalo disrupted... switching potential.')
+                potential_sh_id = 0
+            
+            q_subhalo = self.sim.rs[self.rsid, sn]['x']
+            q_ext     = self.sim.rs[0, sn]['x']
+            
+            r_subhalo = np.sqrt(np.sum((pos - q_subhalo)**2))
+            r_ext     = np.sqrt(np.sum((pos - q_ext)**2))
+            
+            m = self.evolved_mass[i]
+
+            # create a lookup table for this
+            # consider alternative constructor for MassProfile class
+            self.profile = MassProfile(self.sim, sn, potential_sh_id)
+            self.profile.fit()
+            
+            # todo: add baryons
+            lam = self.profile.profile.tidalStrength(
+                [r_subhalo, 0., 0.],
+                [r_ext,     0., 0.],
+                self.sim.rs[0, sn]['rvir'],
+                self.sim.um["m_star"][0, sn],
+                subhalo_flag)
+
+            self.lam[i] = lam
+
+        # masses = CMassLoss(
+        #     self.gcm[index],
+        #     self.lam,
+        #     end_idx,
+        #     dt)
+
+            # CMassLoss(m0, l, end_idx, dt)
+            mass_loss = getMassLossRate(m, lam) * self.dt[i]
+            freq = getTidalFrequency(lam)
+            timescale = getTidalTimescale(m, lam)
+
+            self.potential_flag[i] = subhalo_flag
+            self.evolved_mass[i+1] = m + mass_loss
+            self.t[i] += self.dt[i]
+            self.r[i] = r_ext if subhalo_flag else r_subhalo
+            
+            self.profile_params.append(self.profile.profile_params)
+
+        print("done")
+
+        
+>>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
         
