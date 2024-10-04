@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+# from distutils.core import setup
+from Cython.Build import cythonize
+from setuptools import setup, Extension
+import numpy as np
 
 setup(
     name="mwgcs",
@@ -18,4 +21,7 @@ setup(
         "symlib",
         "astropy"
     ],
+    # ext_modules=cythonize("mwgcs/cy_evolve.pyx"),
+    include_dirs=[np.get_include()]
+
 )

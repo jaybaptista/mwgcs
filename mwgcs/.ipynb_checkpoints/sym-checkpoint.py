@@ -10,7 +10,7 @@ from scipy.optimize import curve_fit
 from scipy.integrate import quad
 from scipy.interpolate import interp1d
 import symlib
-
+import os
 
 class Simulation():
     """
@@ -69,6 +69,10 @@ class Simulation():
         # Set up particle cache for speedup
         self.buffer_snap = 235
         self.particles = None
+
+    def getSimulationName(self):
+        return os.path.split(self.sim_dir)[-1]
+
     
     def getRedshift(self, snapshot):
         """
@@ -165,5 +169,3 @@ class Simulation():
 
         # Return the convergence radius
         return (5.5e-2 * l, 3 * self.params['eps']/self.params['h100'] * a)
-
-    

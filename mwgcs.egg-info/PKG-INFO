@@ -2,12 +2,13 @@ Metadata-Version: 2.1
 Name: mwgcs
 Version: 1.0
 Summary: Globular cluster formation and evolution in Symphony
-Home-page: UNKNOWN
 Author: Jay Baptista
 Author-email: jaymarie@stanford.edu
-License: UNKNOWN
-Platform: UNKNOWN
 License-File: LICENSE
-
-UNKNOWN
-
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Requires-Dist: asdf
+Requires-Dist: h5py
+Requires-Dist: symlib
+Requires-Dist: astropy

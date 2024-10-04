@@ -4,11 +4,14 @@ setup.py
 mwgcs/__init__.py
 mwgcs/_tmp.py
 mwgcs/config.py
+mwgcs/cy_evolve.c
 mwgcs/evolve.py
 mwgcs/fit.py
 mwgcs/form.py
+mwgcs/setup.py
 mwgcs/sym.py
 mwgcs/track.py
+mwgcs/util.py
 mwgcs.egg-info/PKG-INFO
 mwgcs.egg-info/SOURCES.txt
 mwgcs.egg-info/dependency_links.txt

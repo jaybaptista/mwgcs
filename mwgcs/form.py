@@ -63,7 +63,6 @@ def sampleMilkyWayGCMF(ms, Mmin = 1e3, Mmax = 1e7):
 def DwarfGCMF(mass, M_mean=-7., M_sigma=0.7):
     
     # get magnitude from mass
-    
     mag = 5.03 - 2.5 * np.log10(mass)
     gclf_value = norm.pdf(mag, loc=M_mean, scale=M_sigma)
     

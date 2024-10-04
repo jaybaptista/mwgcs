@@ -1,3 +1,4 @@
+import abc
 import astropy.constants as c
 import astropy.units as u
 import numpy as np
@@ -6,85 +7,210 @@ from scipy.integrate import quad
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 from scipy.special import gamma, gammaincc
+from scipy.stats import norm
 import gravitree
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsc
 
-class NFW():
-    """
-    This is a Profile class for an NFW profile
-    """
-    
-    def __init__(self, mvir, rvir, conc):
-        
-        self.type = "nfw"
-        
-        # set up parameters
-        self.mvir = mvir
-        self.rvir = rvir
-        self.conc = conc
-        
-        # calculate aux params
-        
-        self.Rs = self.rvir / self.conc
-        
-        # units of density is Msun/kpc3
-        self.rho0 = (
-            self.mvir * u.Msun / \
-            (4 * np.pi * (self.Rs * u.kpc)**3 * \
-             (np.log(1+self.conc) - (self.conc/(1+self.conc))))).value
-        
-    def mass(self, r):
-        return 4 * np.pi * self.rho0 * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
-    
-    def density(self, r):
-        return self.rho0 / ((r/self.Rs) * (1+ (r/self.Rs))**2)
-    
-    def analyticSlope(self, r):
-        _mass = self.mass(r)
-        return 4 * np.pi * (r**3) * self.density(r) / _mass
-    
-    def analyticPotential(self, r):
-        return - (4 * np.pi * c.G * self.rho0 * (u.Msun / u.kpc**3) * (self.Rs * u.kpc)**3 / r) * np.log(1 + (r / (self.Rs * u.kpc)).decompose().value)
+from gala.potential import PlummerPotential
+from gala.units import galactic
 
-class Einasto():
-    """
-    This is a Profile class that holds all the helper functions for the fit
-    """
-    def __init__(self, Rs=None, logrho2=None, alpha=None):
+
+########################################################################################################
+
+class SphericalHaloProfile(abc.ABC):
+
+    def __init__(self, q, q_sh, mp, rvir, a=1.0, **kwargs):
+        # particle positions with shape [3, N_particles] (Cartesian)
+        self.q = q 
+        
+        # position of the subhalo
+        self.q_sh = q_sh
+
+        # particle mass
+        self.mp = mp
+
+        # virial radius of halo
+        self.rvir = rvir
+
+        # distances to center
+        self.r = np.sqrt(np.sum((self.q - self.q_sh)**2, axis=1))
+
+        self.a = a
+
+    def particle_count(self, r):
+        return np.sum(self.r <= r)
+        
+    def menc(self, r):
+        return self.mp * self.particle_count(r)
+        
+    def getDensityProfile(self, bins=50):
+        # Select particles within the virial radius
+        mask = self.r < self.rvir
+        _r = self.r[mask] # only consider particles within rvir
+       
+        # Edge case is when there are less particles than bins desired
+        low_res = np.sum(mask) < bins
+        
+        if low_res: 
+            bins = np.sum(mask)
+            print("Subhalo has insufficient particle count, rebinning with ", bins, " bins")
+
+        # bin particles by radius
+        sorted_indices = np.argsort(_r) # sort by radius
+        
+        bin_idx = np.array_split(sorted_indices, bins) # split index bins roughly evenly
+        
+        bin_edges = np.concatenate(
+            [
+                [0],
+                [_r[i[-1]] for i in bin_idx] # rightmost bin edge
+            ]
+        )
+        
+        bin_volume = (4*np.pi / 3) * ((bin_edges[1:])**3 - (bin_edges[:-1])**3)
+
+        
+        bin_count = np.array([
+            np.sum((_r >= bin_edges[i]) & (_r < bin_edges[i+1])) \
+            for i in range(len(bin_edges)-1)])
+        
+        if low_res:
+            bin_count = np.ones(bins)
+        
+        # calculate the density in each bin
+        bin_density = np.array(self.mp * bin_count / bin_volume)
+
+        # get average radius in each bin
+        # split particles up by their sorted positions
+        _br = np.array_split(_r[sorted_indices], bins) 
+
+        # get the mean of each bin, this is the radius used in the fit
+        bin_radius = np.array([np.mean(i) for i in _br]) 
+        
+        return bin_radius, bin_density
+
+    def getRadialAccelerationProfile(self, rvir, eps, bins=100):
+        
+        _menc = np.vectorize(self.menc)
+        sampling_radii = np.logspace(-2, np.log10(3 * rvir), bins)
+        
+        mass = _menc(sampling_radii)
+        _G = 1.3938323614347172e-22 # units of km * kpc2 / (Msun s2)
+
+        # apply force softening to the bins that are located
+        # within the softening radius
+        softening = eps * self.a # multiply by a 
+        
+        # accelerations = _G * mass / (sampling_radii**2 + softening**2)
+        accelerations = _G * mass / (sampling_radii**2)
+        
+        return sampling_radii, accelerations
+        
+    @abc.abstractmethod
+    def fit(self, **kwargs):
+        # This is where one would implement their fitting scheme
+        # to obtain the parameters they want.
+        self.params = {}
+        
+        return self.params
+
+class SymphonyHaloProfile(SphericalHaloProfile):
+
+    def einasto_log_density(self, r, alpha, Rs, logScaleDensity):
+        A = 1.715 * (alpha**(-.00183)) * (alpha + 0.0817)**(-.179488)
+        Rmax = A * Rs
+        scaleDensity = 10**logScaleDensity
+        rho = scaleDensity * np.exp(-(2 / alpha) * (((A * r) / Rmax)**(alpha) - 1))
+        return np.log10(rho)
+
+    def fit(self, r_conv, bins=50):
+        
+        radii, rho = self.getDensityProfile(bins)
+    
+        mask = radii > r_conv
+        
+        radii = self.bins = np.array(radii)[mask]
+        logrho = np.log10(np.array(rho)[mask])
+
+        popt, pcov = curve_fit(
+                    self.einasto_log_density,
+                    radii,
+                    logrho,
+                    p0=[.18, 10, 5], # some random values
+                    bounds=((.01, .01, -2.), (.3, 100., 10.)), 
+                    maxfev = 100000,
+                    nan_policy='omit'
+                    )
+        alpha, Rs, logScaleDensity = popt
+        
+        self.params = {
+            "alpha": alpha,
+            "Rs": Rs,
+            "logScaleDensity": logScaleDensity
+        }
+
+        return self.params
+    
+########################################################################################################
+
+
+class Profile(abc.ABC):
+
+    def __init__():
+        pass
+
+    # @abc.abstractmethod
+    # def set_params(self, **kwargs):
+    #     pass
+
+    @abc.abstractmethod
+    def mass(self, **kwargs):
+        pass
+    
+    @abc.abstractmethod
+    def density(self, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def potential(self, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def hessian(self, **kwargs):
+        pass
+
+    def acceleration(self, r, softening = 0.):
+        _menc = self.mass(r)
+        _g = 1.3938323614347172e-22 # in units of kpc^2/Msun * (km/s^2)
+        return _g * _menc / (r**2 + softening**2)
+
+    @abc.abstractmethod
+    def tidalStrength(self, **kwargs):
+        pass
+
+class Einasto(Profile):
+    def __init__(self, alpha, scaleRadius, logScaleDensity):
         """
-        Sets initial fitting parameters
+        Sets initial fitting parameters.
 
         Parameters
         ----------
         Rs : float (optional, default=1)
-            Scale radius of the Einasto profile
+            Scale radius of the Einasto profile in kpc
         
-        logrho2 : float (optional, default=0)
-            Log of the density at Rs
+        logScaleDensity : float (optional, default=0)
+            Log of the density at Rs in Msun/kpc^3
         
         alpha : float (optional, default=0.18)
             Shape parameter of the Einasto profile
         """
-        
-        
-        
-        if alpha is None:
-            self.alpha = .18 
-        else:
-            self.alpha = alpha
-        
-        if Rs is None:
-            self.default_Rs = 1
-        else: 
-            self.default_Rs = Rs
-        
-        if logrho2 is None:
-            self.default_logrho2 = 0
-        else:
-            self.default_logrho2 = logrho2
-    
+
+        self.alpha = alpha
+        self.Rs = scaleRadius
+        self.logScaleDensity = logScaleDensity
+
     def A(self):
         """
         Assuming an Einasto profile, the radius at which the density curve is maximal is A times the scale radius Rs.
@@ -95,8 +221,8 @@ class Einasto():
             A parameter for the Einasto profile
         """
         return 1.715 * (self.alpha**(-.00183)) * (self.alpha + 0.0817)**(-.179488)
-        
-    def density(self, r, Rs=None, logrho2=None, alpha=None):
+
+    def density(self, r, log=False):
         """
         Analytic form of the density profile
 
@@ -104,346 +230,286 @@ class Einasto():
         ----------
         r : float
             Radius at which to evaluate the density profile
-        
-        Rs : float (optional, default=None)
-            Scale radius of the Einasto profile
-        
-        logrho2 : float (optional, default=None)
-            Log of the density at Rs
-        
-        alpha : float (optional, default=None)
-            Shape parameter of the Einasto profile
 
         Returns
         -------
         float
             Density at radius r
         """
-        if Rs is None:
-            Rs = self.default_Rs
-        if logrho2 is None:
-            logrho2 = self.default_logrho2
-        if alpha is None:
-            alpha = self.alpha
         
-        # Rmax = 2.164 * Rs
-        Rmax = self.A() * Rs
-        return (10**logrho2) * np.exp(-(2 / self.alpha) * (((self.A() * r) / Rmax)**(self.alpha) - 1))
-    
-    def logdensity(self, r, Rs=None, logrho2=None, alpha=None):
-        """
-        Log of the density profile, used primarily for fitting
+        Rmax = self.A() * self.Rs
+        scaleDensity = 10**self.logScaleDensity
+        rho = scaleDensity * np.exp(-(2 / self.alpha) * (((self.A() * r) / Rmax)**(self.alpha) - 1))
+        
+        if log:
+            return np.log10(rho)
+        else:
+            return rho
 
-        Parameters
-        ----------
-        r : float
-            Radius at which to evaluate the density profile
-        
-        Rs : float (optional, default=None)
-            Scale radius of the Einasto profile
-        
-        logrho2 : float (optional, default=None)
-            Log of the density at Rs
-        
-        alpha : float (optional, default=None)
-            Shape parameter of the Einasto profile
-        
-        Returns
-        -------
-        float
-            Log of the density at radius r
-        """
-        return np.log10(self.density(r, Rs, logrho2, alpha))
-
-    def density_integrand(self, r, Rs=None, logrho2=None, alpha=None):
-        """
-        Integrand used to compute enclosed mass of the profile
-        """
-        return self.density(r, Rs, logrho2, alpha) * 4 * np.pi * r**2
-    
-    def mass(self, r, Rs=None, logrho2=None, alpha=None):
+    def mass(self, r):
         """
         Enclosed mass of the profile at radius r
         """
-        m = quad(self.density_integrand, 0, r, (Rs, logrho2, alpha))[0]
-        return m
-    
-    def v_circ(self, r, Rs=None, logrho2=None, alpha=None):
-        """
-        Returns circular velocity at radius r
-        """
-        mass = self.mass(r, Rs, logrho2, alpha) * u.Msun
-        vel = ((c.G * mass / (r * u.kpc))**(1/2)).to(u.km / u.s).value
-        return vel
-    
-    def massSlope(self, radii, Rs=None, logrho2=None, alpha=None):
-        """
-        Returns the mass slope given an array of radii(dlnm/dlnr)
+        integ = lambda r: self.density(r) * 4 * np.pi * r**2
+        menc = quad(integ, 0, r)[0]
+        return menc
 
-        Parameters
-        ----------
-        radii : array
-            Array of radii at which to evaluate the mass slope
-        
-        Rs : float (optional, default=None)
-            Scale radius of the Einasto profile
-        
-        logrho2 : float (optional, default=None)
-            Log of the density at Rs
-        
-        alpha : float (optional, default=None)
-            Shape parameter of the Einasto profile
-
-        Returns
-        -------
-        interp1d
-            Interpolated function of the mass slope
+    def potential(self, q):
         """
-        mass = [self.mass(r_i, Rs, logrho2, alpha) for r_i in radii]
-        dlnr = np.gradient(radii, edge_order=2) / radii
-        dlnm = np.gradient(mass, edge_order=2) / mass
-        mass_profile = interp1d(radii, dlnm/dlnr)
-        return mass_profile
-    
-    def analyticSlope(self, radii, Rs=None, logrho2=None, alpha=None):
-        mass = [self.mass(r_i, Rs, logrho2, alpha) for r_i in radii]
-        
-        return [self.density_integrand(r_i, Rs, logrho2, alpha) for r_i in radii] * radii / mass
-    
-    def getVmax(self):
-        """
-        Returns the maximum circular velocity of the Einasto profile
+        Returns the potential at q = [x, y, z]
         """
 
-        radii = 10**np.linspace(-.5, 2.5)
-        velocities = [self.v_circ(r) for r in radii]
-        return np.max(velocities)
-    
-    def analyticPotential(self, r, m=1e12 * u.Msun):
-        
-        dn = 2 / self.alpha
-        n = 1 / self.alpha
-        s = (dn)**n * (r / self.default_Rs)
-        h = self.default_Rs * u.kpc / (dn)**n
-        
-        t1 = gammaincc(3*n, s**(1/n))
-        t2 = gammaincc(2*n, s**(1/n)) * s * (gamma(2*n) / gamma(3*n))
-        
-        return (c.G * m / (h * s)) * (1 - t1 + t2)
-    
-    def getHessianRR(self, r):
-        r = r * u.kpc
-        dn = 2 / self.alpha
-        n = 1 / self.alpha
-        s = ((dn)**n * (r / (self.default_Rs * u.kpc))).decompose().value
-        rs = self.default_Rs * u.kpc
-        
-        halo_mass = self.mass(1e3) * u.Msun # sorry phil this is just a messy way of getting the halo mass
-        
-        _a = (c.G * halo_mass / r**3) 
-        _b = np.exp(-s**(1/n)) * (s**2) * (dn**n * r * (-n + s**(1/n)) - (s**(1/n)**(1+n)) * rs)
-        _c = 2 * n**2 * rs * gammaincc(3*n, s**(1/n))
-        _d = n**2 * rs * gamma(3 * n)
-        
-        H_rr = _a * (- 2 + (_b + _c)/_d)
-        H_rr = H_rr.to(u.Gyr**(-2)).value
-        
-        return H_rr
-    
-    # create M(r) -> Phi(r)
-    # 
-    
-    
-    def analyticTidalTensor(self, r):
+        r = (q[0]**2 + q[1]**2 + q[2]**2)**(1/2)
 
-        H_rr = self.getHessianRR(r.value)
+        if r == 0.:
+            return 0.
+
+        m = _m(r)
+        rho = _rho(r)        
+
+        return 4 * np.pi * (r**2) * rho * (r / m)
+
+
+        _a = self.alpha
+        # _g = 4.498502151469554e-06 # units of kpc^3/Gyr^2/Msun
+        _g = 4.30091727e-06 # in units of kpc/Msun * (km/s)^2
         
-        H_ij = np.diag(np.array([H_rr, 0, 0]))
-        tensor = (-(1/3)*np.trace(H_ij) * np.identity(3) + H_ij) * (u.Gyr**(-2))
-        return tensor
-        
-    
-class MassProfile():
-    """
-    This class interacts with a Simulation object and references a subhalo and snapshot 
-    to compute the density profile according to Rockstar-style binning
-    """
-    
-    def __init__(self,
-                 sim,
-                 snap,
-                 sh_id,
-                 boundOnly=False,
-                 subsample_frac=0.
-                ):
-        
-        p = sim.getParticles(snap)
-        params = sim.params
-        
-        self.type = "ein"
-        
-        self.pos = p[sh_id]['x']
-        self.vel = p[sh_id]['v']
-        
-        self.sh_pos = sim.rs[sh_id, snap]['x']
-        self.sh_vel = sim.rs[sh_id, snap]['v']
-        self.rvir = sim.rs[sh_id, snap]['rvir']
-        
-        if not sim.sf[sh_id, snap]['ok_rs']:
-            self.sh_pos = sim.rs[sh_id, snap]['x']
-            self.sh_vel = sim.rs[sh_id, snap]['v']
-        
-        self.rvir = sim.rs[sh_id, snap]['rvir']
-        self.eps = sim.params['eps'] / sim.params['h100']
-        self.h100 = sim.params['h100']
-        self.mp = sim.params['mp'] / sim.params['h100']
-        
-        self.bins_ok = False
-        
-        part_limit_fit = 25
-        resample_counter = 0
-        
-        # this is bugged right now:
-        while (subsample_frac > 0) and not self.bins_ok:
-            n = len(self.pos) 
-            rand_index = random.sample(range(n), int(subsample_frac * n))
+        scaleDensity = 10**self.logScaleDensity
+
+        def lowerIncompleteGamma(a, x, tilde=False):
+            base = jsc.special.gammainc(a, x) * jsc.special.gamma(a)
+            _tilde = (_a * self.Rs**_a / 2)**a
             
-            self.pos = p[sh_id]['x'][rand_index]
-            self.vel = p[sh_id]['v'][rand_index]
-            self.mp = self.mp / subsample_frac
-            _dist = np.sqrt(np.sum((self.pos-self.sh_pos)**2, axis=1))
-            
-            mask = _dist < self.rvir
-            
-            resample_counter +=1
-            # loop through until you find good enough choice
-            # of bins
-            if np.sum(mask) > part_limit_fit:
-                self.bins_ok = False
-                break
-            elif resample_counter > 10:
-                raise Exception("Resampled more than 10 times, ending...")
-
-        ########################################################
-                
-        self.dist = np.sqrt(np.sum((self.pos-self.sh_pos)**2, axis=1))
-        self.r_conv = np.max(sim.getConvergenceRadius(snap))
-        self._ein = None
+            if tilde:
+                return base * _tilde
+            else:
+                return base
         
-        self.z = sim.getRedshift(snap)
-        
-        self.boundOnly = boundOnly
-        
-        if boundOnly:
-            print("Calculating binding energies...")
-            self.bE = gravitree.binding_energy(
-                self.pos - self.sh_pos, # change particle frame to frame of the subhalo
-                self.vel - self.sh_vel, # same here
-                self.mp / self.h100,
-                self.eps / self.h100,
-                n_iter=3)
+        def upperIncompleteGamma(a, x, tilde=False):
+            base = jsc.special.gammaincc(a, x) * jsc.special.gamma(a)
+            _tilde = (_a * self.Rs**_a / 2)**a
+            if tilde:
+                return base * _tilde
+            else:
+                return base
 
-            self.bound = self.bE < 0
+        _sr = 2 * r**_a / (_a * self.Rs**_a)
 
+        tmp1 = 4*np.pi*_g*scaleDensity*jnp.exp(2/_a) / _a
+        tmp2 = (1/r) * lowerIncompleteGamma(3/_a, _sr, tilde=True)
+        tmp3 = upperIncompleteGamma(2/_a, _sr, tilde=True)
+
+        return - tmp1 * (tmp2 + tmp3) 
+        
+    def hessian(self, r):
+        # spherical symmetry
+        q = np.array([r, 0., 0.])
+        return jax.hessian(self.potential, argnums=0)(q)
+
+    def tidalStrength(self, r):
+        
+        hess = self.hessian(r)
+        
+        tidal_tensor = - hess
+        
+        eigenvalues, eigenvectors = np.linalg.eig(tidal_tensor)
+        # TODO: fix this later
+        pass
+# =======
+        
+#         return tmp1 * (tmp2 + tmp3) * 0.9560776287794536 # conversion factor to km^2/s^2
     
-    def particleCount(self, r):
+#     def tidalTensor(self, q, q_ext, ext_rvir, ext_ms, disrupt=True):
+#         """
+#         Returns the tidal tensor at position q = [x, y, z] in an external potential.
+
+#         Parameters
+#         ----------
+
+#         ext_rvir -> virial radius of the host galaxy
+#         ext_ms   -> stellar mass of the host galaxy
+#         disrupt  -> has the subhalo disrupted
+#         """
         
-        if self.boundOnly:
-            return np.sum((self.dist < r) & self.bound)
+#         ext_pot_hessian = np.zeros(shape=(3, 3))
+
+#         def rh_rvir_relation(rvir, addScatter=True):
+#             # Kravstov 2013
+#             slope = .95
+#             normalization = .015
+#             scatter = 0.2 # dex
+            
+#             rand = norm.rvs(
+#                 loc=0,
+#                 scale=0.2,
+#                 size=1) if addScatter else 0.
+            
+#             log_rvir = np.log10(rvir)
+#             log_rh = slope * log_rvir + rand + np.log10(normalization)
+#             return 10**log_rh
         
-        return np.sum(self.dist < r)
+#         rh = rh_rvir_relation(ext_rvir)
+        
+#         plummer_rc = rh / 1.3
+        
+#         _pot = PlummerPotential(m=ext_ms*u.Msun, b=plummer_rc*u.kpc, units=galactic)
+#         ext_pot_hessian = _pot.hessian(q_ext).to(u.Gyr**(-2)).value
+
+#         subhalo_hessian = jax.hessian(self.potential, argnums=0)(q) if not disrupt else np.zeros(shape=(3, 3))
+        
+#         hessian = subhalo_hessian + ext_pot_hessian
+#         tt = -(1/3) * jnp.trace(hessian) * jnp.identity(3) + hessian
+#         return tt
     
+#     def tidalStrength(self, q, q_ext, ext_rvir=300., ext_ms=1e11, disrupt=False):
+#         """
+#         Returns the tidal strength at position q = [x, y, z]
+#         """
+#         lam = np.max(np.abs(jnp.linalg.eigvals(self.tidalTensor(q, q_ext, ext_rvir, ext_ms, disrupt))))
+#         return lam
+# >>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
+
+#         l1 = eigenvalues[0] 
+#         l2 = eigenvalues[1]
+#         l3 = eigenvalues[2] # most negative eigenvalue? 
+
+#         return eigenvalues[0] + omega
+        
+
+class NFW(Profile):
+
+    def __init__(self, mvir, rvir, cvir):
+        self.mvir = mvir
+        self.rvir = rvir
+        self.cvir = cvir
+
+        self.Rs = rvir / cvir
+        self.rho0 = (mvir / (4 * np.pi * self.Rs**3)) / (jnp.log(1+cvir) - (cvir / (1+cvir)))
+
+    # def mass(self, r):
+
+    #     menc = 4 * np.pi * self.rho0 * self.Rs**3 * (jnp.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
+
+    #     return menc
+
     def mass(self, r):
-        return self.mp * self.particleCount(r)
-    
-    def density(self, r, dr=.001):
-        vol = (4*np.pi / 3) * (r**3 - (r-dr)**3)
-        counts = 0
-        if self.boundOnly:
-            counts = np.sum((self.dist < r) & (self.dist > (r-dr)) & self.bound)
-        else:
-            counts = np.sum((self.dist < r) & (self.dist > (r-dr)))
+        """
+        Enclosed mass of the profile at radius r
+        """
+        integ = lambda r: self.density(r) * 4 * np.pi * r**2
+        menc = quad(integ, 0, r)[0]
+        return menc
         
-        mass = counts * self.mp
-        
-        return mass / vol
-    
-    def v_circ(self, r):
-        return (c.G * self.mass(r) * u.Msun / (r * u.kpc))**(1/2)
-    
-    def density_rs(self, bins=50):
-        mask = self.dist < self.rvir # cut on distance
-        
-        # edge case is when there are less particles than bins desired
-        low_res = np.sum(mask) < bins
-        if low_res:
-            
-            bins = np.sum(mask)
-            print("low res", bins)
-        
-        _dist = self.dist[mask] # only consider particles within rvir
+    def density(self, r):
+        return (self.rho0) / ((r/self.Rs) * (1 + (r/self.Rs))**2)
 
-        indices = np.argsort(_dist) # sort by radius
-        idx_bins = np.array_split(indices, bins) # split index bins roughly evenly
-        bin_edges = np.concatenate(
-            [
-                [0],
-                [_dist[i[-1]] for i in idx_bins] # rightmost bin edge
-            ]
-        )
-        bin_volume = (4*np.pi / 3) * ((bin_edges[1:])**3 - (bin_edges[:-1])**3)
+    def potential(self, q):
         
-        self._rs_idx_bins = idx_bins
-        self._rs_bin_edges = bin_edges
-        self._rs_bin_volume = bin_volume
-        self._rs_bin_count = np.array([
-            np.sum(
-                (_dist >= bin_edges[i]) & (_dist < bin_edges[i+1])) for i in range(len(bin_edges)-1)])
+        r = (q[0]**2 + q[1]**2 + q[2]**2)**(1/2)
         
-        if low_res:
-            self._rs_bin_count = np.ones(bins)
+        _G = 4.30091727e-06 # in units of kpc/Msun * (km/s)^2
         
-        # calculate the density in each bin
-        bin_density = np.array(self.mp * self._rs_bin_count / bin_volume)
+        return - ((4 * np.pi * _G * self.rho0 * self.Rs**3) / r) * jnp.log(1 + (r/self.Rs))
 
-        # get average radius in each bin
-        rad_bins = np.array_split(_dist[indices], bins) # split particles up by their sorted positions
-        avg_rad = np.array([np.mean(i) for i in rad_bins]) # get the mean of each bin, this is the radius used in the fit
+    def hessian(self, r):
+        # spherical symmetry
         
-        return avg_rad, bin_density
+        q = np.array([r, 0., 0.])
+        
+        return jax.hessian(self.potential, argnums=0)(q)
 
-    def fit(self, ein=None):
-        if ein is None:
-            ein = Einasto()
-        self._ein = ein # remove this after debugging
-        radii, density_profile = self.density_rs() # fit the desnity profile based on rockstar binning
+    def tidalStrength(self, r):
         
-        # mask out the convergence radius
-        radial_mask = radii > self.r_conv
+        hess = self.hessian(r)
+        
+        tidal_tensor = - hess
+        
+        eigenvalues, eigenvectors = np.linalg.eig(tidal_tensor)
 
-        # fit the density profile 
-        self.bins = np.array(radii)[radial_mask]
-        self.logdata = np.log10(np.array(density_profile)[radial_mask])
+        l1 = eigenvalues[0] 
+        l2 = eigenvalues[1]
+        l3 = eigenvalues[2] # most negative eigenvalue? 
 
-        popt, pcov = curve_fit(ein.logdensity,
-                       self.bins,
-                       self.logdata,
-                       p0=[20, .6, .18], # some random values
-                       maxfev = 10000
-                      )
+        return eigenvalues[0] + omega
         
-        _ein = Einasto(*popt)
-        
-        self._popt = popt
-        self._ein = _ein
-        
-        return _ein.density, _ein.mass, _ein.v_circ
+# class NFW():
+#     """
+#     This is a Profile class for an NFW profile
+#     """
     
-    def massSlope(self, radii):
-        mass = [self.mass(r_i) for r_i in radii]
-        dlnr = np.gradient(radii, edge_order=2) / radii
-        dlnm = np.gradient(mass, edge_order=2) / mass
-        mass_profile = interp1d(radii, dlnm/dlnr)
-        return mass_profile
+#     def __init__(self, mvir, rvir, c):
+        
+#         self.type = "nfw"
+#         self.mvir = mvir
+#         self.rvir = rvir
+#         self.c = c        
+#         self.Rs = self.rvir / self.c
+        
+#         self.scaleDensity = (
+#             self.mvir / \
+#             (4 * np.pi * (self.Rs)**3 * \
+#              (np.log(1+self.c) - (self.c/(1+self.c))))).value
+        
+#     def mass(self, r):
+#         return 4 * np.pi * self.scaleDensity * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
     
+#     def density(self, r):
+#         return self.scaleDensity / ((r/self.Rs) * (1+ (r/self.Rs))**2)
     
+#     def analyticSlope(self, r):
+#         _m = np.vectorize(self.mass)
+#         m = _m(r)
+#         return 4 * np.pi * (r**3) * self.density(r) / m
+    
+#     def analyticPotential(self, r):
+#         return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))
+########################################################################################################
+
+# helper functions
+
+def getTidalTensor(hess):
+    # hess = potential.hessian(r)
+    tidal_tensor = hess - ((1/3) * jnp.trace(hess) * jnp.identity(3))
+    return tidal_tensor
+
+def getTidalStrength(tidal_tensor):
+    """
+    Returns the tidal strength at position q = [x, y, z]
+    """
+    
+    lam = np.max(np.abs(jnp.linalg.eigvals(tidal_tensor)))
+    
+    return lam
+
+
+# class NFW():
+#     """
+#     This is a Profile class for an NFW profile
+#     """
+    
+#     def __init__(self, mvir, rvir, c):
+        
+#         self.type = "nfw"
+#         self.mvir = mvir
+#         self.rvir = rvir
+#         self.c = c        
+#         self.Rs = self.rvir / self.c
+        
+#         self.scaleDensity = (
+#             self.mvir / \
+#             (4 * np.pi * (self.Rs)**3 * \
+#              (np.log(1+self.c) - (self.c/(1+self.c))))).value
+        
+#     def mass(self, r):
+#         return 4 * np.pi * self.scaleDensity * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
+    
+#     def density(self, r):
+#         return self.scaleDensity / ((r/self.Rs) * (1+ (r/self.Rs))**2)
+    
+#     def analyticSlope(self, r):
+#         _m = np.vectorize(self.mass)
+#         m = _m(r)
+#         return 4 * np.pi * (r**3) * self.density(r) / m
+    
+#     def analyticPotential(self, r):
+#         return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))
