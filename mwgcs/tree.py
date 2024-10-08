@@ -128,6 +128,7 @@ class TreeReader(abc.ABC):
                 "vel": [],
                 "fit_param": [],
                 "type": [],
+                "logrh": []
             }
 
     @abc.abstractmethod
@@ -456,12 +457,13 @@ class SymphonyReader(TreeReader):
             start_snap = np.min(np.unique(_infall_snaps[np.where(_infall_snaps != -1)[0]]))
             track_snaps = self.snapshots[start_snap:]
             
-            def trackPotentialProperties(snapshot, halo_id, pos, params, pot_type):
+            def trackPotentialProperties(snapshot, halo_id, pos, params, pot_type, logrh=None):
                 self.potential_catalog["snapshot"].append(snapshot)
                 self.potential_catalog["halo_id"].append(halo_id)
                 self.potential_catalog["pos"].append(pos)
                 self.potential_catalog["fit_param"].append(params)
                 self.potential_catalog["type"].append(pot_type)
+                self.potential_catalog["logrh"].append(logrh)
 
             for snap in tqdm(track_snaps):
 
@@ -485,6 +487,8 @@ class SymphonyReader(TreeReader):
                         mass = self.rs[i, snap]['m']
                         rvir = self.rs[i, snap]['rvir']
 
+                        logrh = np.log10(rh_rvir_relation(rvir, True))
+
                         # Attempt to fit an Einasto profile to
                         # the density field.
 
@@ -500,7 +504,7 @@ class SymphonyReader(TreeReader):
                         
                             params = profile.fit(np.max(self.getConvergenceRadius(snap)))
                             
-                            trackPotentialProperties(snap, i, pos, params, 'einasto')
+                            trackPotentialProperties(snap, i, pos, params, 'einasto', logrh)
 
                         def fit_nfw():
                             params = {
@@ -511,7 +515,7 @@ class SymphonyReader(TreeReader):
                             
                             # NFW profile
                             # mvir, c
-                            trackPotentialProperties(snap, i, pos, params, 'nfw')
+                            trackPotentialProperties(snap, i, pos, params, 'nfw', logrh)
                         
                         try:
                             fit_einasto()
@@ -653,7 +657,19 @@ class SymphonyReader(TreeReader):
             _af = asdf.AsdfFile(self.potential_catalog)
             _af.write_to(write_dir)
 
-
-            
-                
-            
+###########################################################
+# Utility functions that I probably should move... ########
+def rh_rvir_relation(rvir, addScatter=True):
+        # Kravstov 2013
+        slope = .95
+        normalization = .015
+        scatter = 0.2 # dex
+        
+        rand = norm.rvs(
+            loc=0,
+            scale=0.2,
+            size=1) if addScatter else 0.
+        
+        log_rvir = np.log10(rvir)
+        log_rh = slope * log_rvir + rand + np.log10(normalization)
+        return 10**log_rh

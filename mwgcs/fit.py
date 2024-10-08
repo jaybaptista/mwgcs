@@ -94,7 +94,7 @@ class SphericalHaloProfile(abc.ABC):
     def getRadialAccelerationProfile(self, rvir, eps, bins=100):
         
         _menc = np.vectorize(self.menc)
-        sampling_radii = np.logspace(-2, np.log10(3 * rvir), bins)
+        sampling_radii = np.logspace(-2, np.log10(5 * rvir), bins)
         
         mass = _menc(sampling_radii)
         _G = 1.3938323614347172e-22 # units of km * kpc2 / (Msun s2)
@@ -268,6 +268,11 @@ class Einasto(Profile):
         rho = _rho(r)        
 
         return 4 * np.pi * (r**2) * rho * (r / m)
+    
+    def potential(self, q):
+        """
+        Returns the potential at q = [x, y, z]
+        """
 
 
         _a = self.alpha
@@ -313,68 +318,13 @@ class Einasto(Profile):
         tidal_tensor = - hess
         
         eigenvalues, eigenvectors = np.linalg.eig(tidal_tensor)
-        # TODO: fix this later
-        pass
-# =======
-        
-#         return tmp1 * (tmp2 + tmp3) * 0.9560776287794536 # conversion factor to km^2/s^2
-    
-#     def tidalTensor(self, q, q_ext, ext_rvir, ext_ms, disrupt=True):
-#         """
-#         Returns the tidal tensor at position q = [x, y, z] in an external potential.
 
-#         Parameters
-#         ----------
+        l1 = eigenvalues[0] 
+        l2 = eigenvalues[1]
+        l3 = eigenvalues[2] # most negative eigenvalue? 
+        omega = - (1/3) * (l1 + l2 + l3)
 
-#         ext_rvir -> virial radius of the host galaxy
-#         ext_ms   -> stellar mass of the host galaxy
-#         disrupt  -> has the subhalo disrupted
-#         """
-        
-#         ext_pot_hessian = np.zeros(shape=(3, 3))
-
-#         def rh_rvir_relation(rvir, addScatter=True):
-#             # Kravstov 2013
-#             slope = .95
-#             normalization = .015
-#             scatter = 0.2 # dex
-            
-#             rand = norm.rvs(
-#                 loc=0,
-#                 scale=0.2,
-#                 size=1) if addScatter else 0.
-            
-#             log_rvir = np.log10(rvir)
-#             log_rh = slope * log_rvir + rand + np.log10(normalization)
-#             return 10**log_rh
-        
-#         rh = rh_rvir_relation(ext_rvir)
-        
-#         plummer_rc = rh / 1.3
-        
-#         _pot = PlummerPotential(m=ext_ms*u.Msun, b=plummer_rc*u.kpc, units=galactic)
-#         ext_pot_hessian = _pot.hessian(q_ext).to(u.Gyr**(-2)).value
-
-#         subhalo_hessian = jax.hessian(self.potential, argnums=0)(q) if not disrupt else np.zeros(shape=(3, 3))
-        
-#         hessian = subhalo_hessian + ext_pot_hessian
-#         tt = -(1/3) * jnp.trace(hessian) * jnp.identity(3) + hessian
-#         return tt
-    
-#     def tidalStrength(self, q, q_ext, ext_rvir=300., ext_ms=1e11, disrupt=False):
-#         """
-#         Returns the tidal strength at position q = [x, y, z]
-#         """
-#         lam = np.max(np.abs(jnp.linalg.eigvals(self.tidalTensor(q, q_ext, ext_rvir, ext_ms, disrupt))))
-#         return lam
-# >>>>>>> b603e0c467438675711b34f0e15d5ad2419feff4
-
-#         l1 = eigenvalues[0] 
-#         l2 = eigenvalues[1]
-#         l3 = eigenvalues[2] # most negative eigenvalue? 
-
-#         return eigenvalues[0] + omega
-        
+        return eigenvalues[0] + omega
 
 class NFW(Profile):
 
@@ -385,12 +335,6 @@ class NFW(Profile):
 
         self.Rs = rvir / cvir
         self.rho0 = (mvir / (4 * np.pi * self.Rs**3)) / (jnp.log(1+cvir) - (cvir / (1+cvir)))
-
-    # def mass(self, r):
-
-    #     menc = 4 * np.pi * self.rho0 * self.Rs**3 * (jnp.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
-
-    #     return menc
 
     def mass(self, r):
         """
@@ -429,87 +373,6 @@ class NFW(Profile):
         l1 = eigenvalues[0] 
         l2 = eigenvalues[1]
         l3 = eigenvalues[2] # most negative eigenvalue? 
+        omega = - (1/3) * (l1 + l2 + l3)
 
         return eigenvalues[0] + omega
-        
-# class NFW():
-#     """
-#     This is a Profile class for an NFW profile
-#     """
-    
-#     def __init__(self, mvir, rvir, c):
-        
-#         self.type = "nfw"
-#         self.mvir = mvir
-#         self.rvir = rvir
-#         self.c = c        
-#         self.Rs = self.rvir / self.c
-        
-#         self.scaleDensity = (
-#             self.mvir / \
-#             (4 * np.pi * (self.Rs)**3 * \
-#              (np.log(1+self.c) - (self.c/(1+self.c))))).value
-        
-#     def mass(self, r):
-#         return 4 * np.pi * self.scaleDensity * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
-    
-#     def density(self, r):
-#         return self.scaleDensity / ((r/self.Rs) * (1+ (r/self.Rs))**2)
-    
-#     def analyticSlope(self, r):
-#         _m = np.vectorize(self.mass)
-#         m = _m(r)
-#         return 4 * np.pi * (r**3) * self.density(r) / m
-    
-#     def analyticPotential(self, r):
-#         return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))
-########################################################################################################
-
-# helper functions
-
-def getTidalTensor(hess):
-    # hess = potential.hessian(r)
-    tidal_tensor = hess - ((1/3) * jnp.trace(hess) * jnp.identity(3))
-    return tidal_tensor
-
-def getTidalStrength(tidal_tensor):
-    """
-    Returns the tidal strength at position q = [x, y, z]
-    """
-    
-    lam = np.max(np.abs(jnp.linalg.eigvals(tidal_tensor)))
-    
-    return lam
-
-
-# class NFW():
-#     """
-#     This is a Profile class for an NFW profile
-#     """
-    
-#     def __init__(self, mvir, rvir, c):
-        
-#         self.type = "nfw"
-#         self.mvir = mvir
-#         self.rvir = rvir
-#         self.c = c        
-#         self.Rs = self.rvir / self.c
-        
-#         self.scaleDensity = (
-#             self.mvir / \
-#             (4 * np.pi * (self.Rs)**3 * \
-#              (np.log(1+self.c) - (self.c/(1+self.c))))).value
-        
-#     def mass(self, r):
-#         return 4 * np.pi * self.scaleDensity * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
-    
-#     def density(self, r):
-#         return self.scaleDensity / ((r/self.Rs) * (1+ (r/self.Rs))**2)
-    
-#     def analyticSlope(self, r):
-#         _m = np.vectorize(self.mass)
-#         m = _m(r)
-#         return 4 * np.pi * (r**3) * self.density(r) / m
-    
-#     def analyticPotential(self, r):
-#         return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))

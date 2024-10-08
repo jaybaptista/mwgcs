@@ -18,6 +18,7 @@ from .sym import Simulation
 from .form import lognorm_hurdle, sampleMilkyWayGCMF, sampleDwarfGCMF
 from .evolve import getMassLossRate, getTidalTimescale, getTidalFrequency
 
+
 # from .fit import MassProfile
 
 # lookup tables

@@ -130,8 +130,27 @@ class SymphonyOrbit(Orbit):
         z = (1/scale_factors) - 1
         
         snapshot_times = cosmo.hubbleTime(z)
+
+        
+
         
         super().__init__(tracking_catalog, gc_index, snapshot_times, acc_catalog = acc_catalog)
+
+        self.catalog_snapshots = np.array(self.acc_catalog['snapshot'], dtype=object)
+        self.catalog_hid = np.array(self.acc_catalog['halo_id'], dtype=object)
+        self.catalog_radii = np.array(self.acc_catalog['radii'], dtype=object)
+        self.catalog_acc   = np.array(self.acc_catalog['acc'], dtype=object)
+        
+        # self.potential_catalog["snapshot"].append(snapshot)
+        #         self.potential_catalog["halo_id"].append(halo_id)
+        #         self.potential_catalog["pos"].append(pos)
+        #         self.potential_catalog["fit_param"].append(params)
+        #         self.potential_catalog["type"].append(pot_type)
+        #         self.potential_catalog["logrh"].append(logrh)
+        
+        self.potential_types = np.array(self.potential_catalog['type'])
+        self.potential_params = np.array(self.potential_catalog['fit_param'])
+        self.potential_logrh = np.array(self.potential_catalog['logrh'])
 
     def get_snap_acc(self):
         accs = []
@@ -139,19 +158,14 @@ class SymphonyOrbit(Orbit):
         if self.acc_catalog is None:
             raise ValueError("No acceleration catalog provided!")
         
-        catalog_snapshots = np.array(self.acc_catalog['snapshot'])
-        catalog_hid = np.array(self.acc_catalog['halo_id'])
-        catalog_radii = np.array(self.acc_catalog['radii'])
-        catalog_acc   = np.array(self.acc_catalog['acc'])
-
         rs = np.log10(np.sqrt(np.sum(self.pos**2, axis=1)))
 
         for i, snapshot in tqdm(enumerate(self.snaps)):
             
-            m_i  = np.where((catalog_snapshots == snapshot) & (catalog_hid == 0))
-            acc_i = catalog_acc[m_i]
+            m_i  = np.where((self.catalog_snapshots == snapshot) & (self.catalog_hid == 0))[0][0]
+            acc_i = np.array(self.catalog_acc[m_i], dtype=float)
             nan_mask_i = np.isnan(np.log10(acc_i)) | np.isinf(np.log10(acc_i))
-            radii_i = catalog_radii[m_i]
+            radii_i = np.array(self.catalog_radii[m_i], dtype=float)
             
             
 
@@ -168,10 +182,6 @@ class SymphonyOrbit(Orbit):
 
     def accelerations(self, q, t):
         snap_times = self.snapshot_times[self.snaps] * 1000
-        catalog_snapshots = np.array(self.acc_catalog['snapshot'], dtype=object)
-        catalog_hid = np.array(self.acc_catalog['halo_id'], dtype=object)
-        catalog_radii = np.array(self.acc_catalog['radii'], dtype=object)
-        catalog_acc   = np.array(self.acc_catalog['acc'], dtype=object)
 
         snapshot_idx = 0
         
@@ -180,22 +190,22 @@ class SymphonyOrbit(Orbit):
         snapshot = self.snaps[snapshot_idx]
         
         if snapshot == 235:
-            break
+            return 0.
 
         # current radius
-        r = np.sqrt(np.sum(self.w[:3, i]**2))
+        r = np.sqrt(np.sum(q**2))
 
         # let i be the current snapshot, and k = i+1, because I already have
         # variables with numbers
 
         # pick out the central halo catalog entry with matching snapshot
-        idx_i  = np.where((catalog_snapshots == snapshot) & (catalog_hid == 0))[0][0]
+        idx_i  = np.where((self.catalog_snapshots == snapshot) & (self.catalog_hid == 0))[0][0]
 
         # pick out the central halo catalog entry with the next snapshot
-        idx_k = np.where((catalog_snapshots == (snapshot + 1)) & (catalog_hid == 0))[0][0]
+        idx_k = np.where((self.catalog_snapshots == (snapshot + 1)) & (self.catalog_hid == 0))[0][0]
         
-        acc_i = catalog_acc[idx_i]
-        r_i = catalog_radii[idx_i]
+        acc_i = self.catalog_acc[idx_i]
+        r_i = self.catalog_radii[idx_i]
 
         t_i = self.snapshot_times[snapshot] * 1000
 
@@ -210,8 +220,8 @@ class SymphonyOrbit(Orbit):
 
         #### do same thing for next snapshot #####
         
-        acc_k = catalog_acc[idx_k]
-        r_k = catalog_radii[idx_k]
+        acc_k = self.catalog_acc[idx_k]
+        r_k = self.catalog_radii[idx_k]
         t_k = self.snapshot_times[snapshot + 1] * 1000
 
         r_1k_idx = np.where(r >= r_k)[0][-1]
@@ -269,10 +279,10 @@ class SymphonyOrbit(Orbit):
 
         # print("Interpolating acceleration profiles...")
         
-        catalog_snapshots = np.array(self.acc_catalog['snapshot'], dtype=object)
-        catalog_hid = np.array(self.acc_catalog['halo_id'], dtype=object)
-        catalog_radii = np.array(self.acc_catalog['radii'], dtype=object)
-        catalog_acc   = np.array(self.acc_catalog['acc'], dtype=object)
+        catalog_snapshots = self.catalog_snapshots
+        catalog_hid = self.catalog_hid
+        catalog_radii = self.catalog_radii
+        catalog_acc   = self.catalog_acc
 
         for i, t in enumerate(tqdm(self.t[:-1])):
 
@@ -354,41 +364,90 @@ class SymphonyOrbit(Orbit):
         
         return accs
     
-    def get_orbital_tidal_strength(self, q, galaxy=False):
+    def get_orbital_tidal_strength(self, q, t, galaxy=False):
         
         if self.potential_catalog is None:
             raise ValueError("No potential catalog provided!")
 
-        strengths = []
 
-        # self.potential_catalog["snapshot"].append(snapshot)
-        #         self.potential_catalog["halo_id"].append(halo_id)
-        #         self.potential_catalog["pos"].append(pos)
-        #         self.potential_catalog["fit_param"].append(params)
-        #         self.potential_catalog["type"].append(pot_type)
+        snap_times = self.snapshot_times[self.snaps] * 1000
+
+        snapshot_idx = 0
+        
+        if ((t / 1000) > self.snapshot_times[self.snaps]).any():
+            snapshot_idx = np.where(((t / 1000) > self.snapshot_times[self.snaps]))[0][-1]
+        snapshot = self.snaps[snapshot_idx]
+        
+        if snapshot == 235:
+            return 0.
+
+        # current radius
+        r = np.sqrt(np.sum(q**2))
+
+        # let i be the current snapshot, and k = i+1, because I already have
+        # variables with numbers
+
+        # pick out the central halo catalog entry with matching snapshot
+        idx_i  = np.where((self.catalog_snapshots == snapshot) & (self.catalog_hid == 0))[0][0]
+
+        # pick out the central halo catalog entry with the next snapshot
+        idx_k = np.where((self.catalog_snapshots == (snapshot + 1)) & (self.catalog_hid == 0))[0][0]
+
+        pot_i_type = np.array(self.potential_types)[idx_i]
+        pot_i_params = np.array(self.potential_params)[idx_i]
+        pot_i_rh = 
+        
+        pot_i = None
+        lam_i = None
+
+        if pot_type == 'einasto':
+            pot = Einasto(**pot_i_params)
+        elif pot_type == 'nfw':
+            pot = NFW(**pot_i_params)
+        
+        r_i = np.sqrt(np.sumself.pos[:, snapshot]**2)
+        t_i = self.snapshot_times[snapshot] * 1000
+        lam_i = pot.tidalStrength(r_i)
+
+        gal_i = 
+
+        #### do same thing for next snapshot #####
+        
+        r_k = np.sqrt(np.sumself.pos[:, snapshot + 1]**2)
+        t_k = self.snapshot_times[snapshot + 1] * 1000
+        lam_k = pot.tidalStrength(r_k)
+
+        gal_k = 
 
         
-        # for snapshot in self.snaps:
+        m_t = (log_p_k - log_p_i) / (t_k - t_i)
+        
+        # # log protect
+        # if a_1k == 0.:
+        #     a_1k = 1e-99
 
-        #     snap_mask = np.array(self.potential_catalog['snapshot']) == snapshot
-        #     central_index = np.where((np.array(self.potential_catalog['halo_id']) == 0) & snap_mask)[0]
+        # if a_2k == 0.:
+        #     a_2k = 1e-99
 
-        #     pot_type = np.array(self.potential_catalog['type'])[central_index]
-        #     _params = np.array(self.potential_catalog['params'])[central_index]
-            
-        #     pot = None
-        #     strength = None
+        # if a_1i == 0.:
+        #     a_1i = 1e-99
 
-        #     if pot_type == 'einasto':
-        #         pot = Einasto(
-        #     elif pot_type == 'nfw':
-        #         pot = NFW(_params['mvir'], _params['rvir'], _params['cvir'])
-        #         pot.tidalStrength(r)
-                
-        # return strengths
-        pass
-    
+        # if a_2i == 0.:
+        #     a_2i = 1e-99
+        
+        # # now get acceleration slopes m
+        # m_i = get_log_slope(p_2i, p_1i, r_2i, r_1i)
+        # m_k = get_log_slope(p_2k, p_1k, r_2k, r_1k)
+        
+        # log_p_i = log_point_slope(r, p_1i, r_1i, m_i)
+        # log_p_k = log_point_slope(r, p_1k, r_1k, m_k)
+        
+        # # interpolate across time 
+        
+        # m_t = (log_p_k - log_p_i) / (t_k - t_i)
+        # evaluated_log_p = semilog_point_slope(t, 10**log_p_k, t_k, m_t)
 
+        # return 10**evaluated_log_p
         
 ########################################################################################################
 
