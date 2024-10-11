@@ -25,7 +25,6 @@ class TreeReader(abc.ABC):
         self.infall_time = self.cosmic_time[snapshots]
         self.infall_a    = self.a[snapshots]
         self.infall_mass = halo_mass
-
         self.disrupt_snap = end_snapshots
 
     @abc.abstractmethod
@@ -229,7 +228,9 @@ class SymphonyReader(TreeReader):
         self.assign_cluster_tags(write_dir = './tagged_cluster.asdf')
         self.write_tracking_catalog(write_dir = './tracked_clusters.asdf')
         self.write_potential_catalog(write_dir = './tracked_potentials.asdf')
-        self.write_acceleration_catalog(write_dir = './tracked_acc.asdf')
+        # self.write_acceleration_catalog(write_dir = './tracked_acc.asdf')
+        self.make_acceleration_cube(write_dir = './acc_cube.npz')
+
         #################################################################
         
 
@@ -532,6 +533,76 @@ class SymphonyReader(TreeReader):
                         
             _af = asdf.AsdfFile(self.potential_catalog)
             _af.write_to(write_dir)
+
+    def make_acceleration_cube(self, write_dir):
+
+        # check if the acceleration cube has already been made
+
+        if os.path.exists(write_dir):
+            print("Found archived acceleration cube...")
+            self.acc_cube = asdf.open(write_dir)
+        else:
+            radial_bin_count = 100
+            cube = np.zeros((self.rs.shape[0],
+                             self.rs.shape[1],
+                             radial_bin_count)) * np.nan
+
+            particle_class = symlib.Particles(self.sim_dir)
+        
+            # loop over each snapshot
+            for snapshot in tqdm(range(len(self.rs.shape[1]))):
+                
+                particles = particle_class.read(snapshot, mode='all')
+
+                # loop over each halo
+                for halo_id in range(len(self.rs.shape[0])):
+
+                    # check if that halo is trackable
+                    # i.e., is it flagged 'ok' by rockstar?
+                    is_tracked = self.rs[halo_id, snapshot]['ok']
+
+                    if is_tracked:
+
+                        # Bulk subhalo properties
+                        pos = self.rs[halo_id, snapshot]['x']
+                        vel = self.rs[halo_id, snapshot]['v']
+                        mass = self.rs[halo_id, snapshot]['m']
+
+                        rvir = self.rs[halo_id, snapshot]['rvir']
+
+                        # select for bound particles only
+                        q = particles[halo_id]['x']
+                        p = particles[halo_id]['v']
+
+                        dq = q - pos
+                        dp = p - vel
+
+                        r = np.sqrt(np.sum(dq**2, axis=1))
+                        order = np.argsort(r)
+
+                        ke = np.sum(dp**2, axis=1) / 2
+                        ok = np.ones(len(ke), dtype=bool)
+
+                        for _ in range(3):
+                            _, vmax, pe, _ = symlib.profile_info(self.params, dq, ok=ok)
+                            E = ke + pe*vmax**2
+                            ok = E < 0
+
+                        print('halo loaded with ', len(q) ,'particles and r_vir =', rvir)
+
+                        profile = SymphonyHaloProfile(q[ok],
+                                                    pos,
+                                                    self.mp,
+                                                    rvir,
+                                                    a=self.a[snapshot])
+
+                        accelerations = profile.getRadialAccelerationProfile(bins = radial_bin_count)
+
+                        cube[halo_id, snapshot, :] = accelerations
+            # save cube as compressed numpy array
+            np.savez_compressed(write_dir, cube)
+
+        
 
     def write_acceleration_catalog(self, write_dir):
 

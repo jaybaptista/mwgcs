@@ -91,22 +91,15 @@ class SphericalHaloProfile(abc.ABC):
         
         return bin_radius, bin_density
 
-    def getRadialAccelerationProfile(self, rvir, eps, bins=100):
+    def getRadialAccelerationProfile(self, eps, bins=100):
         
-        _menc = np.vectorize(self.menc)
-        sampling_radii = np.logspace(-2, np.log10(3 * rvir), bins)
-        
-        mass = _menc(sampling_radii)
+        sampling_radii = np.logspace(-2, 5, bins)
+        enclosed_mass = np.vectorize(self.menc)
+        mass = enclosed_mass(sampling_radii * self.rvir)
         _G = 1.3938323614347172e-22 # units of km * kpc2 / (Msun s2)
+        acceleration = _G * mass / (sampling_radii**2)
 
-        # apply force softening to the bins that are located
-        # within the softening radius
-        softening = eps * self.a # multiply by a 
-        
-        # accelerations = _G * mass / (sampling_radii**2 + softening**2)
-        accelerations = _G * mass / (sampling_radii**2)
-        
-        return sampling_radii, accelerations
+        return acceleration
         
     @abc.abstractmethod
     def fit(self, **kwargs):
@@ -435,41 +428,9 @@ class NFW(Profile):
         l2 = eigenvalues[1]
         l3 = eigenvalues[2] # most negative eigenvalue? 
 
+        omega = - (1/3) * (l1 + l2 + l3)
         return eigenvalues[0] + omega
         
-# class NFW():
-#     """
-#     This is a Profile class for an NFW profile
-#     """
-    
-#     def __init__(self, mvir, rvir, c):
-        
-#         self.type = "nfw"
-#         self.mvir = mvir
-#         self.rvir = rvir
-#         self.c = c        
-#         self.Rs = self.rvir / self.c
-        
-#         self.scaleDensity = (
-#             self.mvir / \
-#             (4 * np.pi * (self.Rs)**3 * \
-#              (np.log(1+self.c) - (self.c/(1+self.c))))).value
-        
-#     def mass(self, r):
-#         return 4 * np.pi * self.scaleDensity * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
-    
-#     def density(self, r):
-#         return self.scaleDensity / ((r/self.Rs) * (1+ (r/self.Rs))**2)
-    
-#     def analyticSlope(self, r):
-#         _m = np.vectorize(self.mass)
-#         m = _m(r)
-#         return 4 * np.pi * (r**3) * self.density(r) / m
-    
-#     def analyticPotential(self, r):
-#         return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))
-########################################################################################################
-
 # helper functions
 
 def getTidalTensor(hess):
@@ -485,36 +446,3 @@ def getTidalStrength(tidal_tensor):
     lam = np.max(np.abs(jnp.linalg.eigvals(tidal_tensor)))
     
     return lam
-
-
-# class NFW():
-#     """
-#     This is a Profile class for an NFW profile
-#     """
-    
-#     def __init__(self, mvir, rvir, c):
-        
-#         self.type = "nfw"
-#         self.mvir = mvir
-#         self.rvir = rvir
-#         self.c = c        
-#         self.Rs = self.rvir / self.c
-        
-#         self.scaleDensity = (
-#             self.mvir / \
-#             (4 * np.pi * (self.Rs)**3 * \
-#              (np.log(1+self.c) - (self.c/(1+self.c))))).value
-        
-#     def mass(self, r):
-#         return 4 * np.pi * self.scaleDensity * self.Rs**3 * (np.log((self.Rs + r) / self.Rs) - (r / (self.Rs + r)))
-    
-#     def density(self, r):
-#         return self.scaleDensity / ((r/self.Rs) * (1+ (r/self.Rs))**2)
-    
-#     def analyticSlope(self, r):
-#         _m = np.vectorize(self.mass)
-#         m = _m(r)
-#         return 4 * np.pi * (r**3) * self.density(r) / m
-    
-#     def analyticPotential(self, r):
-#         return -(4 * np.pi * c.G * self.scaleDensity * self.Rs**3 / r) * np.log(1 + (r / self.Rs))
