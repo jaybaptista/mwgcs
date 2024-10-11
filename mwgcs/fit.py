@@ -91,22 +91,16 @@ class SphericalHaloProfile(abc.ABC):
         
         return bin_radius, bin_density
 
-    def getRadialAccelerationProfile(self, rvir, eps, bins=100):
-        
-        _menc = np.vectorize(self.menc)
-        sampling_radii = np.logspace(-2, np.log10(5 * rvir), bins)
-        
-        mass = _menc(sampling_radii)
-        _G = 1.3938323614347172e-22 # units of km * kpc2 / (Msun s2)
+    def getRadialAccelerationProfile(self, eps, bins=100):
 
-        # apply force softening to the bins that are located
-        # within the softening radius
-        softening = eps * self.a # multiply by a 
-        
-        # accelerations = _G * mass / (sampling_radii**2 + softening**2)
-        accelerations = _G * mass / (sampling_radii**2)
-        
-        return sampling_radii, accelerations
+        sampling_radii = np.logspace(-2, 5, bins)
+        enclosed_mass = np.vectorize(self.menc)
+        mass = enclosed_mass(sampling_radii * self.rvir)
+
+        _G = 1.3938323614347172e-22 # units of km * kpc2 / (Msun s2)
+        acceleration = _G * mass / (sampling_radii**2)
+
+        return acceleration
         
     @abc.abstractmethod
     def fit(self, **kwargs):
@@ -376,3 +370,20 @@ class NFW(Profile):
         omega = - (1/3) * (l1 + l2 + l3)
 
         return eigenvalues[0] + omega
+        
+# helper functions
+
+def getTidalTensor(hess):
+    # hess = potential.hessian(r)
+    tidal_tensor = hess - ((1/3) * jnp.trace(hess) * jnp.identity(3))
+    return tidal_tensor
+
+def getTidalStrength(tidal_tensor):
+    """
+    Returns the tidal strength at position q = [x, y, z]
+    """
+    
+    lam = np.max(np.abs(jnp.linalg.eigvals(tidal_tensor)))
+    
+    return lam
+>>>>>>> b3651d1d92917b895ba1b2cc1c57349dfaf84312
