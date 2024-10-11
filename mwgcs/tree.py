@@ -610,9 +610,6 @@ class SymphonyReader(TreeReader):
                                                       self.mp,
                                                       rvir,
                                                       a=self.a[snap])
-        
-                        
-
                         
                         radii, accelerations = profile.getRadialAccelerationProfile(rvir, self.eps)
                         trackAccelerations(snap, i, radii, accelerations)            
