@@ -228,7 +228,7 @@ class SymphonyReader(TreeReader):
         
         self.assign_cluster_tags(write_dir = './tagged_cluster.asdf')
         self.write_tracking_catalog(write_dir = './tracked_clusters.asdf')
-        self.write_potential_catalog(write_dir = './tracked_potentials.asdf')
+        # self.write_potential_catalog(write_dir = './tracked_potentials.asdf')
         # self.write_acceleration_catalog(write_dir = './tracked_acc.asdf')
         self.make_acceleration_cube(write_dir = './acc_cube.npz')
 
@@ -554,12 +554,12 @@ class SymphonyReader(TreeReader):
             particle_class = symlib.Particles(self.sim_dir)
         
             # loop over each snapshot
-            for snapshot in tqdm(range(len(self.rs.shape[1]))):
+            for snapshot in tqdm(range(self.rs.shape[1])):
                 
                 particles = particle_class.read(snapshot, mode='all')
 
                 # loop over each halo
-                for halo_id in range(len(self.rs.shape[0])):
+                for halo_id in range(self.rs.shape[0]):
 
                     # check if that halo is trackable
                     # i.e., is it flagged 'ok' by rockstar?

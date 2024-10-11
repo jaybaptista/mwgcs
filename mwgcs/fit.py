@@ -91,7 +91,7 @@ class SphericalHaloProfile(abc.ABC):
         
         return bin_radius, bin_density
 
-    def getRadialAccelerationProfile(self, eps, bins=100):
+    def getRadialAccelerationProfile(self, bins=100):
 
         sampling_radii = np.logspace(-2, 5, bins)
         enclosed_mass = np.vectorize(self.menc)
@@ -386,4 +386,4 @@ def getTidalStrength(tidal_tensor):
     lam = np.max(np.abs(jnp.linalg.eigvals(tidal_tensor)))
     
     return lam
->>>>>>> b3651d1d92917b895ba1b2cc1c57349dfaf84312
+

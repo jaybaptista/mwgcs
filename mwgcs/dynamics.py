@@ -395,7 +395,7 @@ class SymphonyOrbit(Orbit):
 
         pot_i_type = np.array(self.potential_types)[idx_i]
         pot_i_params = np.array(self.potential_params)[idx_i]
-        pot_i_rh = 
+        # pot_i_rh = 
         
         pot_i = None
         lam_i = None
@@ -409,7 +409,7 @@ class SymphonyOrbit(Orbit):
         t_i = self.snapshot_times[snapshot] * 1000
         lam_i = pot.tidalStrength(r_i)
 
-        gal_i = 
+        # gal_i = 
 
         #### do same thing for next snapshot #####
         
@@ -417,7 +417,7 @@ class SymphonyOrbit(Orbit):
         t_k = self.snapshot_times[snapshot + 1] * 1000
         lam_k = pot.tidalStrength(r_k)
 
-        gal_k = 
+        # gal_k = 
 
         
         m_t = (log_p_k - log_p_i) / (t_k - t_i)
