@@ -1,5 +1,8 @@
-.asdf
-.so
-.npz
-.npy
-.png
+*.asdf
+*.so
+*.npz
+*.npy
+*.png
+*.pyc
+*.o
+*.so
