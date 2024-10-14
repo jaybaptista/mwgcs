@@ -16,8 +16,9 @@ class Orbit(abc.ABC):
                  tracking_catalog,
                  gc_index,
                  snapshot_times,
-                 acc_catalog = None,
-                 pot_catalog = None
+                 acc_cube = None,
+                 pot_catalog = None,
+                 sim_dir = None
                 ):
 
         # consider a single GC in the tracking catalog
@@ -26,7 +27,7 @@ class Orbit(abc.ABC):
         self.tracked_indices = tracked_indices
         
         self.tracking_catalog = tracking_catalog
-        self.snapshot_times = snapshot_times
+        self.snapshot_times = snapshot_times # this should be in Myr
 
         self.halo_id = np.array(tracking_catalog['halo_id'])[tracked_indices][0]
         
@@ -36,8 +37,7 @@ class Orbit(abc.ABC):
 
         self.start_snap, self.end_snap, self.snaps = start_snap, end_snap, snaps
         
-        orbit_time = snapshot_times[end_snap] - snapshot_times[start_snap] # in Gyr
-        orbit_time *= 1000 # now in Myr
+        orbit_time = snapshot_times[end_snap] - snapshot_times[start_snap] # in Myr
         
         self.orbit_time = orbit_time
 
@@ -45,16 +45,18 @@ class Orbit(abc.ABC):
         self.pos = None
         self.w = None
 
-        self.acc_catalog = acc_catalog
+        self.acc_cube = acc_cube
 
         self.potential_catalog = pot_catalog
+
+        self.sim_dir = sim_dir
 
     def get_interpolated_times(self, dt=1.):
         # splits the total orbit time
         nsteps = int(self.orbit_time / dt)
         interp_times = np.linspace(
-            1000 * self.snapshot_times[self.start_snap],
-            1000 * self.snapshot_times[self.end_snap],
+            self.snapshot_times[self.start_snap],
+            self.snapshot_times[self.end_snap],
             nsteps)
         
         self.t = interp_times
@@ -77,7 +79,7 @@ class Orbit(abc.ABC):
         self.snaps = snaps
         
         x, y, z = pos.T
-        _times = self.snapshot_times[snaps] * 1000
+        _times = self.snapshot_times[snaps]
         
         xs = UnivariateSpline(_times, x, s=0)
         ys = UnivariateSpline(_times, y, s=0)
@@ -115,7 +117,7 @@ class Orbit(abc.ABC):
 
 class SymphonyOrbit(Orbit):
 
-    def __init__(self, tracking_catalog, acc_catalog, gc_index, sim_dir):
+    def __init__(self, tracking_catalog, acc_cube, gc_index, sim_dir):
 
         params = symlib.simulation_parameters(sim_dir)
 
@@ -129,66 +131,67 @@ class SymphonyOrbit(Orbit):
         
         z = (1/scale_factors) - 1
         
-        snapshot_times = cosmo.hubbleTime(z)
+        snapshot_times = cosmo.hubbleTime(z) * 1000 # in Myr
+
+        # find a way such to pull this from metadata
+        self.radial_bins = np.logspace(-3., 5., 100)
+        
+        super().__init__(tracking_catalog,
+                         gc_index,
+                         snapshot_times,
+                         acc_cube = acc_cube,
+                         sim_dir = sim_dir)
 
         
+        # self.potential_types = np.array(self.potential_catalog['type'])
+        # self.potential_params = np.array(self.potential_catalog['fit_param'])
+        # self.potential_logrh = np.array(self.potential_catalog['logrh'])
 
-        
-        super().__init__(tracking_catalog, gc_index, snapshot_times, acc_catalog = acc_catalog)
+        if self.sim_dir is None:
+            raise ValueError("Symlib needs to read the stored directory but it has not been provided.")
 
-        self.catalog_snapshots = np.array(self.acc_catalog['snapshot'], dtype=object)
-        self.catalog_hid = np.array(self.acc_catalog['halo_id'], dtype=object)
-        self.catalog_radii = np.array(self.acc_catalog['radii'], dtype=object)
-        self.catalog_acc   = np.array(self.acc_catalog['acc'], dtype=object)
-        
-        # self.potential_catalog["snapshot"].append(snapshot)
-        #         self.potential_catalog["halo_id"].append(halo_id)
-        #         self.potential_catalog["pos"].append(pos)
-        #         self.potential_catalog["fit_param"].append(params)
-        #         self.potential_catalog["type"].append(pot_type)
-        #         self.potential_catalog["logrh"].append(logrh)
-        
-        self.potential_types = np.array(self.potential_catalog['type'])
-        self.potential_params = np.array(self.potential_catalog['fit_param'])
-        self.potential_logrh = np.array(self.potential_catalog['logrh'])
+        self.rs = symlib.read_rockstar(self.sim_dir)[0]
 
     def get_snap_acc(self):
-        accs = []
 
-        if self.acc_catalog is None:
+        if self.acc_cube is None:
             raise ValueError("No acceleration catalog provided!")
+        self.orbit_radii = np.log10(np.sqrt(np.sum(self.pos**2, axis=1)))
+        self.orbit_acc = np.zeros(len(self.orbit_radii)) * np.nan
         
-        rs = np.log10(np.sqrt(np.sum(self.pos**2, axis=1)))
-
         for i, snapshot in tqdm(enumerate(self.snaps)):
             
-            m_i  = np.where((self.catalog_snapshots == snapshot) & (self.catalog_hid == 0))[0][0]
-            acc_i = np.array(self.catalog_acc[m_i], dtype=float)
-            nan_mask_i = np.isnan(np.log10(acc_i)) | np.isinf(np.log10(acc_i))
-            radii_i = np.array(self.catalog_radii[m_i], dtype=float)
-            
-            
+            # cube is shaped [halo_id, snapshot, radius]
+            central_id = 0
+            central_acceleration_profile = self.acc_cube[central_id, snapshot, :] # grab all accelerations
+            phys_radii = self.radial_bins * self.rs[central_id, snapshot]['rvir'] # convert to radii in kpc instead of r/rvir
+            nan_mask = np.isnan(central_acceleration_profile)
 
-            r_interp_i = interp1d(np.log10(radii_i[~nan_mask_i]), \
-                                  np.log10(acc_i[~nan_mask_i]), \
-                                  kind='linear', \
-                                  fill_value=0., \
-                                  bounds_error=False)
+            interp = interp1d(
+                np.log10(phys_radii[~nan_mask]),
+                np.log10(central_acceleration_profile[~nan_mask]),
+                kind='linear',
+                fill_value=0.,
+                bounds_error=False
+            )
 
-            accs.append(10**r_interp_i(rs[i]))
+            self.orbit_acc[i] = np.power(10., interp(self.orbit_radii[i]))
 
-        return accs
+        return self.orbit_acc
         
 
     def accelerations(self, q, t):
-        snap_times = self.snapshot_times[self.snaps] * 1000
-
+        central_id = 0
         snapshot_idx = 0
+        snap_times = self.snapshot_times[self.snaps]
+
+        # check which snapshot we should interpolate from
+        if (t > self.snapshot_times[self.snaps]).any():
+            snapshot_idx = np.where((t > self.snapshot_times[self.snaps]))[0][-1]
         
-        if ((t / 1000) > self.snapshot_times[self.snaps]).any():
-            snapshot_idx = np.where(((t / 1000) > self.snapshot_times[self.snaps]))[0][-1]
         snapshot = self.snaps[snapshot_idx]
-        
+
+        # can't interpolate after end of simulation
         if snapshot == 235:
             return 0.
 
@@ -199,15 +202,14 @@ class SymphonyOrbit(Orbit):
         # variables with numbers
 
         # pick out the central halo catalog entry with matching snapshot
-        idx_i  = np.where((self.catalog_snapshots == snapshot) & (self.catalog_hid == 0))[0][0]
+        # idx_i  = np.where((self.catalog_snapshots == snapshot) & (self.catalog_hid == 0))[0][0]
 
         # pick out the central halo catalog entry with the next snapshot
-        idx_k = np.where((self.catalog_snapshots == (snapshot + 1)) & (self.catalog_hid == 0))[0][0]
-        
-        acc_i = self.catalog_acc[idx_i]
-        r_i = self.catalog_radii[idx_i]
+        # idx_k = np.where((self.catalog_snapshots == (snapshot + 1)) & (self.catalog_hid == 0))[0][0]
 
-        t_i = self.snapshot_times[snapshot] * 1000
+        acc_i = self.acc_cube[central_id, snapshot, :]
+        r_i = self.rs[central_id, snapshot]['rvir'] * self.radial_bins
+        t_i = self.snapshot_times[snapshot]
 
         # check which bins the current radius is between
         r_1i_idx = np.where(r >= r_i)[0][-1]
@@ -220,9 +222,9 @@ class SymphonyOrbit(Orbit):
 
         #### do same thing for next snapshot #####
         
-        acc_k = self.catalog_acc[idx_k]
-        r_k = self.catalog_radii[idx_k]
-        t_k = self.snapshot_times[snapshot + 1] * 1000
+        acc_k = self.acc_cube[central_id, snapshot + 1, :]
+        r_k = self.rs[central_id, snapshot + 1]['rvir'] * self.radial_bins
+        t_k = self.snapshot_times[snapshot + 1]
 
         r_1k_idx = np.where(r >= r_k)[0][-1]
         r_2k_idx = r_1k_idx + 1
@@ -263,33 +265,17 @@ class SymphonyOrbit(Orbit):
     def get_accelerations(self):
         # calculates the acceleration vector of a test particle
         
-        self._check_t()
-        self._check_w()
-        
         accs = []
 
-        snap_times = self.snapshot_times[self.snaps] * 1000
-        snap_acc   = []
-        snap_radii = []
-
-        if self.acc_catalog is None:
-            raise ValueError("No acceleration catalog provided!")
-
-        accs = []
-
-        # print("Interpolating acceleration profiles...")
-        
-        catalog_snapshots = self.catalog_snapshots
-        catalog_hid = self.catalog_hid
-        catalog_radii = self.catalog_radii
-        catalog_acc   = self.catalog_acc
+        central_id = 0
+        snap_times = self.snapshot_times[self.snaps]
 
         for i, t in enumerate(tqdm(self.t[:-1])):
 
             snapshot_idx = 0
             
-            if ((t / 1000) > self.snapshot_times[self.snaps]).any():
-                snapshot_idx = np.where(((t / 1000) > self.snapshot_times[self.snaps]))[0][-1]
+            if (t > self.snapshot_times[self.snaps]).any():
+                snapshot_idx = np.where((t > self.snapshot_times[self.snaps]))[0][-1]
             snapshot = self.snaps[snapshot_idx]
             
             if snapshot == 235:
@@ -297,20 +283,9 @@ class SymphonyOrbit(Orbit):
 
             # current radius
             r = np.sqrt(np.sum(self.w[:3, i]**2))
-
-            # let i be the current snapshot, and k = i+1, because I already have
-            # variables with numbers
-
-            # pick out the central halo catalog entry with matching snapshot
-            idx_i  = np.where((catalog_snapshots == snapshot) & (catalog_hid == 0))[0][0]
-
-            # pick out the central halo catalog entry with the next snapshot
-            idx_k = np.where((catalog_snapshots == (snapshot + 1)) & (catalog_hid == 0))[0][0]
-            
-            acc_i = catalog_acc[idx_i]
-            r_i = catalog_radii[idx_i]
-
-            t_i = self.snapshot_times[snapshot] * 1000
+            acc_i = self.acc_cube[central_id, snapshot, :]
+            r_i = self.rs[central_id, snapshot]['rvir'] * self.radial_bins
+            t_i = self.snapshot_times[snapshot]
 
             # check which bins the current radius is between
             r_1i_idx = np.where(r >= r_i)[0][-1]
@@ -322,10 +297,10 @@ class SymphonyOrbit(Orbit):
             a_2i = acc_i[r_2i_idx]
 
             #### do same thing for next snapshot #####
-            
-            acc_k = catalog_acc[idx_k]
-            r_k = catalog_radii[idx_k]
-            t_k = self.snapshot_times[snapshot + 1] * 1000
+
+            acc_k = self.acc_cube[central_id, snapshot + 1, :]
+            r_k = self.rs[central_id, snapshot + 1]['rvir'] * self.radial_bins
+            t_k = self.snapshot_times[snapshot + 1]
 
             r_1k_idx = np.where(r >= r_k)[0][-1]
             r_2k_idx = r_1k_idx + 1

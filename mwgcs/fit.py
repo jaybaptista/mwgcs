@@ -93,9 +93,9 @@ class SphericalHaloProfile(abc.ABC):
 
     def getRadialAccelerationProfile(self, bins=100):
 
-        sampling_radii = np.logspace(-2, 5, bins)
+        sampling_radii = np.logspace(-3, 5, bins) * self.rvir
         enclosed_mass = np.vectorize(self.menc)
-        mass = enclosed_mass(sampling_radii * self.rvir)
+        mass = enclosed_mass(sampling_radii)
 
         _G = 1.3938323614347172e-22 # units of km * kpc2 / (Msun s2)
         acceleration = _G * mass / (sampling_radii**2)
