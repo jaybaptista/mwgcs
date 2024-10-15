@@ -97,8 +97,8 @@ class SphericalHaloProfile(abc.ABC):
         enclosed_mass = np.vectorize(self.menc)
         mass = enclosed_mass(sampling_radii)
 
-        _G = 1.3938323614347172e-22 # units of km * kpc2 / (Msun s2)
-        acceleration = _G * mass / (sampling_radii**2)
+        _G = 4.498502151469554e-12 # units of kpc3 / (Msun Myr2)
+        acceleration = _G * mass / (sampling_radii**2) # in kpc/Myr2
 
         return acceleration
         

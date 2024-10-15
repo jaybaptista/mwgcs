@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from .fit import SymphonyHaloProfile
 
-class TreeReader(abc.ABC):
+class SymphonyInterfacer(abc.ABC):
 
     def __init__(self, snapshots, times, scale_factors, **kwargs):
         self.snapshots   = snapshots
@@ -55,7 +55,6 @@ class TreeReader(abc.ABC):
 
     @abc.abstractmethod
     def write_cluster_catalog(self, gcs_mf, gcmf, write_dir=None, **kwargs):
-        
         
         # loop over the infall masses
         
@@ -231,6 +230,7 @@ class SymphonyReader(TreeReader):
         # self.write_potential_catalog(write_dir = './tracked_potentials.asdf')
         # self.write_acceleration_catalog(write_dir = './tracked_acc.asdf')
         self.make_acceleration_cube(write_dir = './acc_cube.npz')
+        self.make_potential_cube(write_dir = './pot_cube.npz')
 
         #################################################################
         
@@ -439,7 +439,7 @@ class SymphonyReader(TreeReader):
             _af = asdf.AsdfFile(self.tracking_catalog)
             _af.write_to(write_dir, all_array_compression="zlib")
 
-                
+
             
     def write_potential_catalog(self, write_dir):
         
@@ -538,13 +538,89 @@ class SymphonyReader(TreeReader):
             _af = asdf.AsdfFile(self.potential_catalog)
             _af.write_to(write_dir)
 
+    def make_potential_cube(self, write_dir):
+
+        if os.path.exists(write_dir):
+            print("Found archived potential cube...")
+            self.pot_cube = np.load(write_dir)['arr_0']
+        else:
+            cube = np.zeros((self.rs.shape[0], self.rs.shape[1], 5)) * np.nan
+            
+            # parameters 0-3 are the fit parameters
+            # fourth parameter is 0 for einasto, 1 for nfw
+            # fifth parameter is the logrh (baryonic)
+            particle_class = symlib.Particles(self.sim_dir)
+
+            for snapshot in tqdm(range(self.rs.shape[1])):    
+
+                particles = particle_class.read(snapshot, mode='all')
+
+                for halo_id in range(self.rs.shape[0]):
+                    is_tracked = self.rs[halo_id, snapshot]['ok']
+
+                    if is_tracked:
+
+                        subhalo_pos = self.rs[halo_id, snapshot]['x']
+                        subhalo_vel = self.rs[halo_id, snapshot]['v']
+                        rvir = self.rs[halo_id, snapshot]['rvir']
+                        
+                        logrh = np.log10(rh_rvir_relation(rvir, True))
+
+                        # make a function in dynamics that superimposes
+                        # the baryonic component, but we'll store it now
+                        # for funsies :)
+
+                        q = particles[halo_id]['x']
+                        p = particles[halo_id]['v']
+
+                        q, p = get_bounded_particles(q, p, subhalo_pos, subhalo_vel, self.params)
+                        
+                        params = None
+
+                        def fit_einasto():
+                            profile = SymphonyHaloProfile(q,
+                                                          subhalo_pos,
+                                                          self.mp,
+                                                          rvir,
+                                                          a=self.a[snapshot])
+                        
+                            l_conv = np.max(self.getConvergenceRadius(snapshot))
+                            params = profile.fit(l_conv)
+                            
+                            cube[halo_id, snapshot, 3] = 0
+
+                        def fit_nfw():
+                            params = {
+                                "mvir": self.rs[halo_id, snapshot]['m'],
+                                "rvir": self.rs[halo_id, snapshot]['rvir'],
+                                "cvir": self.rs[halo_id, snapshot]['cvir']
+                            }
+
+                            cube[halo_id, snapshot, 3] = 1
+                        
+                        # attempt to fit an einasto profile
+
+                        try:
+                            fit_einasto()
+                        except RuntimeWarning:
+                            fit_nfw()
+                        except:
+                            # actually just give up... Phil... check me on this
+                            # please this is a little bit of a ridiculous way to do this
+                            fit_einasto()
+
+                        cube[halo_id, snapshot, :3] = params
+                        cube[halo_id, snapshot, 4] = logrh
+
+            np.savez_compressed(write_dir, cube)
+
     def make_acceleration_cube(self, write_dir):
 
         # check if the acceleration cube has already been made
 
         if os.path.exists(write_dir):
             print("Found archived acceleration cube...")
-            self.acc_cube = asdf.open(write_dir)
+            self.acc_cube = np.load(write_dir)['arr_0']
         else:
             radial_bin_count = 100
             cube = np.zeros((self.rs.shape[0],
@@ -605,91 +681,6 @@ class SymphonyReader(TreeReader):
                         cube[halo_id, snapshot, :] = accelerations
             # save cube as compressed numpy array
             np.savez_compressed(write_dir, cube)
-
-        
-
-    def write_acceleration_catalog(self, write_dir):
-
-        super().write_acceleration_catalog(write_dir)
-        
-        if os.path.exists(write_dir):
-            print("Found archived acceleration catalog...")
-            self.acc_catalog = asdf.open(write_dir)
-        else:
-            print("Writing acceleration catalog...")
-            particle_class = symlib.Particles(self.sim_dir)
-
-            print("Particles loaded.")
-            
-            _infall_snaps = np.array(self.cluster_catalog['infall_snap'])
-            start_snap = np.min(np.unique(_infall_snaps[np.where(_infall_snaps != -1)[0]]))
-            track_snaps = self.snapshots[start_snap:]
-            
-            def trackAccelerations(snapshot, halo_id, radii, acc):
-                self.acc_catalog["snapshot"].append(snapshot)
-                self.acc_catalog["halo_id"].append(halo_id)
-                self.acc_catalog["radii"].append(radii)
-                self.acc_catalog["acc"].append(acc)
-
-            for snap in tqdm(track_snaps):
-
-            
-                # read in particles at that snapshot
-                particles = particle_class.read(snap, mode='all')
-        
-                # # figure out which halos are okay to track
-                n_halo = self.rs.shape[0]
-        
-                for i in range(n_halo):
-        
-                    # check if that halo is trackable
-                    # i.e., is it flagged 'ok' by rockstar?
-                    is_tracked = self.rs[i, snap]['ok']
-        
-                    if is_tracked:
-
-                        # very flexible, very slow...
-            
-                        # Bulk subhalo properties
-                        pos = self.rs[i, snap]['x']
-                        vel = self.rs[i, snap]['v']
-                        mass = self.rs[i, snap]['m']
-                        rvir = self.rs[i, snap]['rvir']
-
-                        # select for bound particles only
-                        q = particles[i]['x']
-                        p = particles[i]['v']
-
-                        dq = q - pos
-                        dp = p - vel
-                        
-                        r = np.sqrt(np.sum(dq**2, axis=1))
-                        order = np.argsort(r)
-                    
-                        ke = np.sum(dp**2, axis=1) / 2
-                        ok = np.ones(len(ke), dtype=bool)
-                    
-                        for _ in range(3):
-                            _, vmax, pe, _ = symlib.profile_info(self.params, dq, ok=ok)
-                            E = ke + pe*vmax**2
-                            ok = E < 0
-        
-                        print('halo loaded with ', len(q) ,'particles and r_vir =', rvir)
-                        
-                        profile = SymphonyHaloProfile(q[ok],
-                                                      pos,
-                                                      self.mp,
-                                                      rvir,
-                                                      a=self.a[snap])
-                        
-                        radii, accelerations = profile.getRadialAccelerationProfile(rvir, self.eps)
-                        trackAccelerations(snap, i, radii, accelerations)            
-                                
-            _af = asdf.AsdfFile(self.acc_catalog)
-            _af.write_to(write_dir)
-
-    def write_galaxy_parameters(self, write_dir):
-        pass
     
     def write_tidal_strength_catalog(self, write_dir):
 
@@ -718,9 +709,8 @@ class SymphonyReader(TreeReader):
                 self.acc_catalog["acc"].append(acc)
 
             for snap in tqdm(track_snaps):
-                        
-                        radii, accelerations = profile.getRadialAccelerationProfile(rvir, self.eps)
-                        trackAccelerations(snap, i, radii, accelerations)            
+                radii, accelerations = profile.getRadialAccelerationProfile(rvir, self.eps)
+                trackAccelerations(snap, i, radii, accelerations)            
                                 
             _af = asdf.AsdfFile(self.potential_catalog)
             _af.write_to(write_dir)
@@ -741,3 +731,19 @@ def rh_rvir_relation(rvir, addScatter=True):
         log_rvir = np.log10(rvir)
         log_rh = slope * log_rvir + rand + np.log10(normalization)
         return 10**log_rh
+
+def get_bounded_particles(q, p, subhalo_pos, subhalo_vel, params):
+    
+    dq = q - subhalo_pos
+    dp = p - subhalo_vel
+
+    r = np.sqrt(np.sum(dq**2, axis=1))
+    ke = np.sum(dp**2, axis=1) / 2
+    ok = np.ones(len(ke), dtype=bool)
+
+    for _ in range(3):
+        _, vmax, pe, _ = symlib.profile_info(params, dq, ok=ok)
+        E = ke + pe*vmax**2
+        ok = E < 0
+
+    return q[ok], p[ok]

@@ -4,8 +4,6 @@ pyximport.install(setup_args={"script_args" : ["--verbose"]})
 from .cy_evolve import evolveMass
 import astropy.units as u
 
-# getMassLossRate, getTidalTimescale, getTidalFrequency
-
 def getTidalFrequency(l):
     """
     Returns the tidal frequency in Gyr for a given tidal strength.

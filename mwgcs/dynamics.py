@@ -521,22 +521,33 @@ class LeapfrogIntegrator(Integrator):
         super().__init__(w0, acc, ts)
         self.dt = ts[1] - ts[0]
 
-    def loop(self, nsteps):
+    def get_normal_vectors(self, q):
+        normal = - q / np.linalg.norm(q)
+        return normal
 
+    def loop(self, nsteps):
+        
         q = self.w0[:3]
         p = self.w0[3:]
 
         self.w[:3, 0] = q
         self.w[3:, 0] = p
 
-        p_half = p + (self.dt/2. * self.acc(q))
+        a0 = self.acc(q, self.ts[0]) * self.get_normal_vectors(q)
+
+        # kick step
+        p_half = p + (self.dt/2. * a0)
         
         for k in tqdm(range(1, nsteps)):
+
+            # drift
             q = q + (self.dt/2. * p_half)
-            
             self.w[:3, k] = q
+
+            t_i = self.ts[k]
+            a_i = self.acc(q, t_i) * self.get_normal_vectors(q)
             
-            p_half = p_half + (self.dt * self.acc(q) / 2)
+            p_half = p_half + (self.dt * a_i / 2)
             
             self.w[3:, k] = p_half
 ########################################################################################################  
