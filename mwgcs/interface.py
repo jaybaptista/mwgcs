@@ -6,7 +6,9 @@ from tqdm import tqdm
 
 from .fit import SymphonyHaloProfile
 
-class SymphonyInterfacer(abc.ABC):
+from scipy.stats import norm
+
+class Interfacer(abc.ABC):
 
     def __init__(self, snapshots, times, scale_factors, **kwargs):
         self.snapshots   = snapshots
@@ -129,25 +131,25 @@ class SymphonyInterfacer(abc.ABC):
                 "logrh": []
             }
 
-    @abc.abstractmethod
-    def write_acceleration_catalog(self, write_dir, **kwargs):
-        self.acc_catalog = {
-            # This uses the tagged GC catalog to fit relevant acc
-            # across snapshots.
-                "snapshot": [],
-                "halo_id": [],
-                "radii": [],
-                "acc": []
-            }
+    # @abc.abstractmethod
+    # def write_acceleration_catalog(self, write_dir, **kwargs):
+    #     self.acc_catalog = {
+    #         # This uses the tagged GC catalog to fit relevant acc
+    #         # across snapshots.
+    #             "snapshot": [],
+    #             "halo_id": [],
+    #             "radii": [],
+    #             "acc": []
+    #         }
 
-    @abc.abstractmethod
-    def write_galaxy_parameters(self, write_dir, **kwargs):
+    # @abc.abstractmethod
+    # def write_galaxy_parameters(self, write_dir, **kwargs):
 
-        self.gal_params = {
-                "snapshot": [],
-                "halo_id": [],
-                "params": [],
-            }
+    #     self.gal_params = {
+    #             "snapshot": [],
+    #             "halo_id": [],
+    #             "params": [],
+    #         }
         
     @abc.abstractmethod
     def write_tidal_strength_catalog(self, write_dir, **kwargs):
@@ -165,7 +167,7 @@ import symlib
 from colossus.cosmology import cosmology
 from .sampler import DwarfGCMF, EadieSampler
 
-class SymphonyReader(TreeReader):
+class SymphonyInterfacer(Interfacer):
 
     def __init__(self, sim_dir, gcmf = DwarfGCMF, **kwargs):
 
@@ -602,12 +604,8 @@ class SymphonyReader(TreeReader):
 
                         try:
                             fit_einasto()
-                        except RuntimeWarning:
-                            fit_nfw()
                         except:
-                            # actually just give up... Phil... check me on this
-                            # please this is a little bit of a ridiculous way to do this
-                            fit_einasto()
+                            fit_nfw()
 
                         cube[halo_id, snapshot, :3] = params
                         cube[halo_id, snapshot, 4] = logrh
