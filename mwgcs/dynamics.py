@@ -142,11 +142,6 @@ class SymphonyOrbit(Orbit):
                          acc_cube = acc_cube,
                          sim_dir = sim_dir)
 
-        
-        # self.potential_types = np.array(self.potential_catalog['type'])
-        # self.potential_params = np.array(self.potential_catalog['fit_param'])
-        # self.potential_logrh = np.array(self.potential_catalog['logrh'])
-
         if self.sim_dir is None:
             raise ValueError("Symlib needs to read the stored directory but it has not been provided.")
 
