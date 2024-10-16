@@ -123,19 +123,19 @@ class Interfacer(abc.ABC):
             "gc_index": [],
         }
 
-    @abc.abstractmethod
-    def write_potential_catalog(self, write_dir, **kwargs):
-        self.potential_catalog = {
-            # This uses the tagged GC catalog to fit relevant su
-            # across snapshots.
-            "snapshot": [],
-            "halo_id": [],
-            "pos": [],
-            "vel": [],
-            "fit_param": [],
-            "type": [],
-            "logrh": [],
-        }
+    # @abc.abstractmethod
+    # def write_potential_catalog(self, write_dir, **kwargs):
+    #     self.potential_catalog = {
+    #         # This uses the tagged GC catalog to fit relevant su
+    #         # across snapshots.
+    #         "snapshot": [],
+    #         "halo_id": [],
+    #         "pos": [],
+    #         "vel": [],
+    #         "fit_param": [],
+    #         "type": [],
+    #         "logrh": [],
+    #     }
 
     # @abc.abstractmethod
     # def write_acceleration_catalog(self, write_dir, **kwargs):
@@ -157,16 +157,16 @@ class Interfacer(abc.ABC):
     #             "params": [],
     #         }
 
-    @abc.abstractmethod
-    def write_tidal_strength_catalog(self, write_dir, **kwargs):
-        self.lambda_catalog = {
-            # This uses the tagged GC catalog to fit relevant tidal strengths
-            # across snapshots.
-            "snapshot": [],
-            "halo_id": [],
-            "radii": [],
-            "lambda": [],
-        }
+    # @abc.abstractmethod
+    # def write_tidal_strength_catalog(self, write_dir, **kwargs):
+    #     self.lambda_catalog = {
+    #         # This uses the tagged GC catalog to fit relevant tidal strengths
+    #         # across snapshots.
+    #         "snapshot": [],
+    #         "halo_id": [],
+    #         "radii": [],
+    #         "lambda": [],
+    #     }
 
 
 import symlib
@@ -216,7 +216,7 @@ class SymphonyInterfacer(Interfacer):
         disrupt_snaps = np.max(ok_rs_idx, axis=1)
 
         self.infall_snaps = infall_snaps
-        self.infall_mass = infall_mass 
+        self.infall_mass = infall_mass
         self.disrupt_snaps = disrupt_snaps
 
         # self.write_cluster_catalog(gcs_mf = EadieSampler, gcmf = DwarfGCMF, write_dir = './cluster.asdf')
@@ -244,7 +244,10 @@ class SymphonyInterfacer(Interfacer):
         # self.write_potential_catalog(write_dir = './tracked_potentials.asdf')
         # self.write_acceleration_catalog(write_dir = './tracked_acc.asdf')
 
-        self.assign_particle_tags(EadieSampler, DwarfGCMF, write_dir="./tagged_particles.npz")
+        self.assign_particle_tags(
+            EadieSampler, DwarfGCMF, write_dir="./tagged_particles.npz"
+        )
+        self.track_particles(write_dir="./ps_cube.npz") # ps = phase space
         self.make_acceleration_cube(write_dir="./acc_cube.npz")
         self.make_potential_cube(write_dir="./pot_cube.npz")
 
@@ -345,7 +348,9 @@ class SymphonyInterfacer(Interfacer):
             super().write_halo_catalog(write_dir)
 
     def initialize_gc_array(self, system_mass_sampler, gc_mass_sampler):
-
+        
+        print("Initializing GC tag data structure...")
+        
         # mask for subhalos that have infall snaps
         m = self.infall_snaps != -1
 
@@ -354,6 +359,7 @@ class SymphonyInterfacer(Interfacer):
 
         # infall STELLAR masses of subhalos that have infall snaps
         infall_masses = self.infall_mass[m]
+        infall_snaps  = self.infall_snaps[m]
         disrupt_snaps = self.disrupt_snaps[m]
 
         _array_halo_ids = []
@@ -361,53 +367,66 @@ class SymphonyInterfacer(Interfacer):
         _array_disrupt_snap = []
         _array_gc_masses = []
 
-        for i, infall_mass in enumerate(infall_masses):
+        for i, infall_mass in enumerate(tqdm(infall_masses)):
             # obtain individual GC masses for each GC system
             gc_masses = np.array(
-                gc_mass_sampler(
-                    infall_mass, system_mass_sampler=system_mass_sampler
-                )
+                gc_mass_sampler(infall_mass, system_mass_sampler=system_mass_sampler)
             )
 
-            _array_halo_ids.append(np.repeat(halo_ids, len(gc_masses)))
-            _array_infall_snap.append(np.repeat(self.infall_snaps[m][i], len(gc_masses)))
+            _array_halo_ids.append(np.repeat(halo_ids[i], len(gc_masses)))
+            _array_infall_snap.append(
+                np.repeat(infall_snaps[i], len(gc_masses))
+            )
             _array_disrupt_snap.append(np.repeat(disrupt_snaps[i], len(gc_masses)))
+            print(len(gc_masses))
             _array_gc_masses.append(gc_masses)
-            
 
-        _array_halo_ids = np.concatenate(_array_halo_ids) # int
-        _array_infall_snap = np.concatenate(_array_infall_snap) # int
-        _array_disrupt_snap = np.concatenate(_array_disrupt_snap) # int
-        _array_gc_masses = np.concatenate(_array_gc_masses) # float64
+        array_halo_ids = np.hstack(_array_halo_ids)  # int
+        array_infall_snap = np.hstack(_array_infall_snap)  # int
+        array_disrupt_snap = np.hstack(_array_disrupt_snap)  # int
+        array_gc_masses = np.hstack(_array_gc_masses)  # float64
 
         # create structured array
         # dtype = np.dtype([('halo_id', int), ('infall_snap', int), ('gc_mass', float)])
-        dtype = np.dtype([
-            ('halo_id', int),
-            ('infall_snap', int),
-            ('disrupt_snap', int),
-            ('gc_mass', float)
-        ]
+        dtype = np.dtype(
+            [
+                ("halo_id", int),
+                ("infall_snap", int),
+                ("disrupt_snap", int),
+                ("gc_mass", float),
+            ]
         )
-        
-        _array = np.empty(len(_array_halo_ids), dtype=dtype)
-        
-        _array['halo_id'] = _array_halo_ids
-        _array['infall_snap'] = _array_infall_snap
-        _array['disrupt_snap'] = _array_disrupt_snap
-        _array['gc_mass'] = _array_gc_masses
-        
+
+        _array = np.empty(len(array_halo_ids), dtype=dtype)
+
+        _array["halo_id"] = array_halo_ids
+        _array["infall_snap"] = array_infall_snap
+        _array["disrupt_snap"] = array_disrupt_snap
+        _array["gc_mass"] = array_gc_masses
+
         return _array
 
-    def assign_particle_tags(
-        self, system_mass_sampler, gc_mass_sampler, write_dir
-    ):
+    def assign_particle_tags(self,
+                             system_mass_sampler,
+                             gc_mass_sampler,
+                             write_dir,
+                             tmp_dir="tmp.npz"
+                            ):
 
         if os.path.exists(write_dir):
             print("Found particle tag `.npz`...")
         else:
+            
+            print("Assigning GC tags...")
+
+            arr = None
+            
             # initialize the GC array
-            arr = self.initialize_gc_array(system_mass_sampler, gc_mass_sampler)
+            if os.path.exists(tmp_dir):
+                arr = np.load(tmp_dir)['arr_0']
+            else:
+                arr = self.initialize_gc_array(system_mass_sampler, gc_mass_sampler)
+                np.savez_compressed(tmp_dir, arr)
 
             infall_snaps = self.infall_snaps[self.infall_snaps != -1]
 
@@ -417,11 +436,12 @@ class SymphonyInterfacer(Interfacer):
                 [
                     ("halo_id", int),
                     ("infall_snap", int),
-                    ("disrupt_snap", int)
+                    ("disrupt_snap", int),
                     ("gc_mass", float),
                     ("particle_id", int),
-                ])
-            
+                ]
+            )
+
             particle_tag_arr = np.empty(len(arr), dtype=dtype)
             particle_tag_arr["halo_id"] = arr["halo_id"]
             particle_tag_arr["infall_snap"] = arr["infall_snap"]
@@ -435,23 +455,25 @@ class SymphonyInterfacer(Interfacer):
 
                 # indices to assign tags to
                 indices = np.where(particle_tag_arr["infall_snap"] == snap)[0]
+                halo_ids = particle_tag_arr["halo_id"][indices]
 
-                for i in indices:
-                        
-                        halo_id = particle_tag_arr["halo_id"][i]
-    
-                        stars, gals, ranks = symlib.tag_stars(
-                            self.sim_dir, self.gal_halo, target_subs=halo_id
-                        )
-    
-                        prob = stars[halo_id]["mp"] / np.sum(stars[halo_id]["mp"])
-    
-                        # draw tag ids
-                        particle_tag_id = np.random.choice(
-                            np.arange(len(prob)), size=1, replace=False, p=prob
-                        )
-    
-                        particle_tag_arr["particle_id"][i] = particle_tag_id
+                for k, hid in zip(indices, halo_ids):
+
+                    stars, gals, ranks = symlib.tag_stars(
+                        self.sim_dir, self.gal_halo, target_subs=[hid]
+                    )
+
+                    prob = stars[hid]["mp"] / np.sum(stars[hid]["mp"])
+
+                    # draw tag ids
+
+                    # TODO: fix this, you might accidentally pick the same particle
+                    
+                    particle_tag_id = np.random.choice(
+                        np.arange(len(prob)), size=1, replace=False, p=prob
+                    )
+
+                    particle_tag_arr["particle_id"][k] = particle_tag_id
 
             np.savez_compressed(write_dir, particle_tag_arr)
 

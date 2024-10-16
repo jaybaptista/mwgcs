@@ -14,7 +14,7 @@ def EadieSampler(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
 #################################################################
 # Samplers for the individual GC tags, should return a number of GC masses
 def DwarfGCMF(stellar_mass,
-              mass_light_ratio = 10.,
+              mass_light_ratio = 2.,
               system_mass_sampler = EadieSampler):
     
     # NOTE—make sure that you have a keyword "system_mass_sampler"
@@ -26,10 +26,16 @@ def DwarfGCMF(stellar_mass,
     min_gband = -5.5
     max_gband = -9.5
     
-    min_mass = mass_light_ratio * 10**(0.4*(5.03 - max_gband))
-    max_mass = mass_light_ratio * 10**(0.4*(5.03 - min_gband))
+    # min_mass = mass_light_ratio * 10**(0.4*(5.03 - max_gband))
+    # max_mass = mass_light_ratio * 10**(0.4*(5.03 - min_gband))
+
+    # min_mass = mass_light_ratio * 10**(0.4*(5.03 - max_gband))
+    # max_mass = mass_light_ratio * 10**(0.4*(5.03 - min_gband))
+
+    min_mass = 1e4
+    max_mass = 1e6
     
-    gc_mass_range = np.logspace(np.log10(min_mass), np.log10(max_mass))
+    gc_mass_range = np.linspace(min_mass, max_mass, 100)
 
     def _gclf(mass, M_mean=-7., M_sigma=0.7):
         # get magnitude from mass
