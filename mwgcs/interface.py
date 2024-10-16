@@ -10,7 +10,6 @@ from scipy.stats import norm
 
 
 class Interfacer(abc.ABC):
-
     def __init__(self, snapshots, times, scale_factors, **kwargs):
         self.snapshots = snapshots
         self.cosmic_time = times
@@ -20,7 +19,6 @@ class Interfacer(abc.ABC):
     def set_subhalo_infall(
         self, halo_id, snapshots, halo_mass, end_snapshots, **kwargs
     ):
-
         self.halo_id = halo_id
 
         # NOTE: Sentinel value—central galaxy should have infall_snap of -1
@@ -61,7 +59,6 @@ class Interfacer(abc.ABC):
 
     @abc.abstractmethod
     def write_cluster_catalog(self, gcs_mf, gcmf, write_dir=None, **kwargs):
-
         # loop over the infall masses
 
         tree = {
@@ -99,7 +96,6 @@ class Interfacer(abc.ABC):
 
     @abc.abstractmethod
     def assign_cluster_tags(self, **kwargs):
-
         # This should interface w/ self.cluster_catalog
         # as well as your particle reader.
 
@@ -175,9 +171,7 @@ from .sampler import DwarfGCMF, EadieSampler
 
 
 class SymphonyInterfacer(Interfacer):
-
     def __init__(self, sim_dir, gcmf=DwarfGCMF, **kwargs):
-
         self.sim_dir = sim_dir
 
         snapshots = np.arange(0, 236, dtype=int)
@@ -247,7 +241,7 @@ class SymphonyInterfacer(Interfacer):
         self.assign_particle_tags(
             EadieSampler, DwarfGCMF, write_dir="./tagged_particles.npz"
         )
-        self.track_particles(write_dir="./ps_cube.npz") # ps = phase space
+        self.track_particles(write_dir="./ps_cube.npz")  # ps = phase space
         self.make_acceleration_cube(write_dir="./acc_cube.npz")
         self.make_potential_cube(write_dir="./pot_cube.npz")
 
@@ -348,21 +342,20 @@ class SymphonyInterfacer(Interfacer):
             super().write_halo_catalog(write_dir)
 
     def initialize_gc_array(self, system_mass_sampler, gc_mass_sampler):
-        
         print("Initializing GC tag data structure...")
-        
+
         # mask for subhalos that have infall snaps
         m = self.infall_snaps != -1
 
-        # halo ids of subhalos that have infall snaps
-        halo_ids = np.arange(len(self.infall_snaps))[m]
+        # halo indices of subhalos that have infall snaps
+        halo_indices = np.arange(len(self.infall_snaps))[m]
 
         # infall STELLAR masses of subhalos that have infall snaps
         infall_masses = self.infall_mass[m]
-        infall_snaps  = self.infall_snaps[m]
+        infall_snaps = self.infall_snaps[m]
         disrupt_snaps = self.disrupt_snaps[m]
 
-        _array_halo_ids = []
+        _array_halo_indices = []
         _array_infall_snap = []
         _array_disrupt_snap = []
         _array_gc_masses = []
@@ -373,15 +366,13 @@ class SymphonyInterfacer(Interfacer):
                 gc_mass_sampler(infall_mass, system_mass_sampler=system_mass_sampler)
             )
 
-            _array_halo_ids.append(np.repeat(halo_ids[i], len(gc_masses)))
-            _array_infall_snap.append(
-                np.repeat(infall_snaps[i], len(gc_masses))
-            )
+            _array_halo_indices.append(np.repeat(halo_indices[i], len(gc_masses)))
+            _array_infall_snap.append(np.repeat(infall_snaps[i], len(gc_masses)))
             _array_disrupt_snap.append(np.repeat(disrupt_snaps[i], len(gc_masses)))
             print(len(gc_masses))
             _array_gc_masses.append(gc_masses)
 
-        array_halo_ids = np.hstack(_array_halo_ids)  # int
+        array_halo_indices = np.hstack(_array_halo_indices)  # int
         array_infall_snap = np.hstack(_array_infall_snap)  # int
         array_disrupt_snap = np.hstack(_array_disrupt_snap)  # int
         array_gc_masses = np.hstack(_array_gc_masses)  # float64
@@ -390,40 +381,36 @@ class SymphonyInterfacer(Interfacer):
         # dtype = np.dtype([('halo_id', int), ('infall_snap', int), ('gc_mass', float)])
         dtype = np.dtype(
             [
-                ("halo_id", int),
+                ("halo_index", int),
                 ("infall_snap", int),
                 ("disrupt_snap", int),
                 ("gc_mass", float),
             ]
         )
 
-        _array = np.empty(len(array_halo_ids), dtype=dtype)
+        _array = np.empty(len(array_halo_indices), dtype=dtype)
 
-        _array["halo_id"] = array_halo_ids
+        _array["halo_index"] = array_halo_indices
         _array["infall_snap"] = array_infall_snap
         _array["disrupt_snap"] = array_disrupt_snap
         _array["gc_mass"] = array_gc_masses
 
         return _array
 
-    def assign_particle_tags(self,
-                             system_mass_sampler,
-                             gc_mass_sampler,
-                             write_dir,
-                             tmp_dir="tmp.npz"
-                            ):
-
+    def assign_particle_tags(
+        self, system_mass_sampler, gc_mass_sampler, write_dir, tmp_dir="tmp.npz"
+    ):
         if os.path.exists(write_dir):
             print("Found particle tag `.npz`...")
+            self.particle_tags = np.load(write_dir)["arr_0"]
         else:
-            
             print("Assigning GC tags...")
 
             arr = None
-            
+
             # initialize the GC array
             if os.path.exists(tmp_dir):
-                arr = np.load(tmp_dir)['arr_0']
+                arr = np.load(tmp_dir)["arr_0"]
             else:
                 arr = self.initialize_gc_array(system_mass_sampler, gc_mass_sampler)
                 np.savez_compressed(tmp_dir, arr)
@@ -434,31 +421,29 @@ class SymphonyInterfacer(Interfacer):
 
             dtype = np.dtype(
                 [
-                    ("halo_id", int),
+                    ("halo_index", int),
                     ("infall_snap", int),
                     ("disrupt_snap", int),
                     ("gc_mass", float),
-                    ("particle_id", int),
+                    ("nimbus_index", int),
                 ]
             )
 
             particle_tag_arr = np.empty(len(arr), dtype=dtype)
-            particle_tag_arr["halo_id"] = arr["halo_id"]
+            particle_tag_arr["halo_index"] = arr["halo_index"]
             particle_tag_arr["infall_snap"] = arr["infall_snap"]
             particle_tag_arr["disrupt_snap"] = arr["disrupt_snap"]
             particle_tag_arr["gc_mass"] = arr["gc_mass"]
-            particle_tag_arr["particle_id"] = np.zeros(len(arr), dtype=int) - 1
+            particle_tag_arr["nimbus_index"] = np.zeros(len(arr), dtype=int) - 1
 
             for snap in tqdm(infall_snaps):
-
                 # particles = self.particle_class.read(snap, mode="stars")
 
                 # indices to assign tags to
                 indices = np.where(particle_tag_arr["infall_snap"] == snap)[0]
-                halo_ids = particle_tag_arr["halo_id"][indices]
+                halo_ids = particle_tag_arr["halo_index"][indices]
 
                 for k, hid in zip(indices, halo_ids):
-
                     stars, gals, ranks = symlib.tag_stars(
                         self.sim_dir, self.gal_halo, target_subs=[hid]
                     )
@@ -468,84 +453,60 @@ class SymphonyInterfacer(Interfacer):
                     # draw tag ids
 
                     # TODO: fix this, you might accidentally pick the same particle
-                    
-                    particle_tag_id = np.random.choice(
+
+                    particle_tag_index = np.random.choice(
                         np.arange(len(prob)), size=1, replace=False, p=prob
                     )
 
-                    particle_tag_arr["particle_id"][k] = particle_tag_id
+                    # NOTE: refactor particle_id to ``nimbus_index``
+                    particle_tag_arr["nimbus_index"][k] = particle_tag_index
 
             np.savez_compressed(write_dir, particle_tag_arr)
 
-    def write_cluster_catalog(self, gcs_mf, gcmf, write_dir, **kwargs):
+    def track_particles(self, write_dir):
         if os.path.exists(write_dir):
-            print("Found archived cluster catalog...")
-            self.cluster_catalog = asdf.open(write_dir)
+            print("Found archived particle tracking cube...")
         else:
-            super().write_cluster_catalog(gcs_mf, gcmf, write_dir)
+            # self.particle_tags
 
-    def assign_cluster_tags(self, write_dir):
-        if os.path.exists(write_dir):
-            print("Found archived tagged cluster catalog...")
-            self.cluster_catalog = asdf.open(write_dir)
-        else:
+            particle_tag_indices = np.arange(len(self.particle_tags))
 
-            _infall_snaps = np.array(self.cluster_catalog["infall_snap"])
+            # this structured array has shape (snapshot, particle index, position(3), velocity(3))
+            tracking_cube = np.zeros((self.rs.shape[1], len(particle_tag_indices), 6))
 
-            loadable_snaps = np.unique(_infall_snaps[np.where(_infall_snaps != -1)[0]])
+            # loop over each snapshot
+            for snapshot in tqdm(range(self.rs.shape[1])):
+                # this should load all the subhalos at a given snapshot
+                # and their corresponding particles
+                particles = self.particle_class.read(snapshot, mode="stars")
 
-            for snap in tqdm(loadable_snaps):
-                # load all particles for that snapshot
-                particles = self.particle_class.read(snap, mode="stars")
+                part_flat = np.hstack(particles)
+                sizes = np.array([len(p) for p in particles])
 
-                load_idx = np.where(
-                    np.array(self.cluster_catalog["infall_snap"]) == snap
-                )[0]
+                edges = np.zeros(len(sizes) + 1, int)
+                edges[1:] = np.cumsum(sizes)
+                starts = edges[:-1]
+                # ends = edges[1:]
 
-                # loop through all clusters identified with an
-                # infall snap that matches the current particle load buffer
-                if len(load_idx) > 0:
+                ok = self.particle_tags["infall_snap"] <= snapshot
 
-                    load_halo_id = np.array(self.cluster_catalog["halo_id"])[load_idx]
-                    stars, gals, ranks = symlib.tag_stars(
-                        self.sim_dir, self.gal_halo, target_subs=load_halo_id
-                    )
+                i_t = (
+                    self.particle_tags["nimbus_index"][ok]
+                    + starts[self.particle_tags["halo_index"][ok]]
+                )
 
-                    for halo_id in load_halo_id:
+                tracking_cube[snapshot, ok, :3] = particles[i_t]["x"]
+                tracking_cube[snapshot, ok, 3:] = particles[i_t]["v"]
 
-                        # calculate gc tag probabilities for the
-                        # stars in the subhalo that was loaded
-                        prob = stars[halo_id]["mp"] / np.sum(stars[halo_id]["mp"])
-
-                        # draw tags
-                        tag_idx = np.random.choice(
-                            np.arange(len(prob)),
-                            size=len(load_idx),
-                            replace=False,
-                            p=prob,
-                        )
-
-                        for tag_id, i in zip(tag_idx, load_idx):
-                            self.cluster_catalog["particle_index"][i] = tag_id
-                else:
-                    print("No subhalo infalls at this snap.")
-
-            self.cluster_catalog["gc_index"] = np.arange(
-                len(self.cluster_catalog["particle_index"])
-            )
-
-            _af = self.cluster_catalog
-            _af.write_to(write_dir)
+            np.savez_compressed(write_dir, tracking_cube)
 
     def write_tracking_catalog(self, write_dir, **kwargs):
-
         super().write_tracking_catalog(write_dir, **kwargs)
 
         if os.path.exists(write_dir):
             print("Found archived tracking catalog...")
             self.tracking_catalog = asdf.open(write_dir)
         else:
-
             _infall_snaps = np.array(self.cluster_catalog["infall_snap"])
 
             # The starting snapshot is the first snapshot where the first subhalo with
@@ -574,7 +535,6 @@ class SymphonyInterfacer(Interfacer):
                 for i, particle_index in enumerate(
                     self.cluster_catalog["particle_index"]
                 ):
-
                     # should we track the GC at this snapshot
                     # i.e., has the GC fallen in yet and if it ever infalls?
 
@@ -585,7 +545,6 @@ class SymphonyInterfacer(Interfacer):
                     )
 
                     if is_tracked:
-
                         pos = particles[self.cluster_catalog["halo_id"][i]]["x"][
                             particle_index
                         ]
@@ -605,7 +564,6 @@ class SymphonyInterfacer(Interfacer):
             _af.write_to(write_dir, all_array_compression="zlib")
 
     def make_potential_cube(self, write_dir):
-
         if os.path.exists(write_dir):
             print("Found archived potential cube...")
             self.pot_cube = np.load(write_dir)["arr_0"]
@@ -617,17 +575,15 @@ class SymphonyInterfacer(Interfacer):
             # fifth parameter is the logrh (baryonic)
 
             for snapshot in tqdm(range(self.rs.shape[1])):
-
                 particles = self.particle_class.read(snapshot, mode="all")
 
-                for halo_id in range(self.rs.shape[0]):
-                    is_tracked = self.rs[halo_id, snapshot]["ok"]
+                for halo_index in range(self.rs.shape[0]):
+                    is_tracked = self.rs[halo_index, snapshot]["ok"]
 
                     if is_tracked:
-
-                        subhalo_pos = self.rs[halo_id, snapshot]["x"]
-                        subhalo_vel = self.rs[halo_id, snapshot]["v"]
-                        rvir = self.rs[halo_id, snapshot]["rvir"]
+                        subhalo_pos = self.rs[halo_index, snapshot]["x"]
+                        subhalo_vel = self.rs[halo_index, snapshot]["v"]
+                        rvir = self.rs[halo_index, snapshot]["rvir"]
 
                         logrh = np.log10(rh_rvir_relation(rvir, True))
 
@@ -635,8 +591,8 @@ class SymphonyInterfacer(Interfacer):
                         # the baryonic component, but we'll store it now
                         # for funsies :)
 
-                        q = particles[halo_id]["x"]
-                        p = particles[halo_id]["v"]
+                        q = particles[halo_index]["x"]
+                        p = particles[halo_index]["v"]
 
                         q, p = get_bounded_particles(
                             q, p, subhalo_pos, subhalo_vel, self.params
@@ -652,16 +608,16 @@ class SymphonyInterfacer(Interfacer):
                             l_conv = np.max(self.getConvergenceRadius(snapshot))
                             params = profile.fit(l_conv)
 
-                            cube[halo_id, snapshot, 3] = 0
+                            cube[halo_index, snapshot, 3] = 0
 
                         def fit_nfw():
                             params = {
-                                "mvir": self.rs[halo_id, snapshot]["m"],
-                                "rvir": self.rs[halo_id, snapshot]["rvir"],
-                                "cvir": self.rs[halo_id, snapshot]["cvir"],
+                                "mvir": self.rs[halo_index, snapshot]["m"],
+                                "rvir": self.rs[halo_index, snapshot]["rvir"],
+                                "cvir": self.rs[halo_index, snapshot]["cvir"],
                             }
 
-                            cube[halo_id, snapshot, 3] = 1
+                            cube[halo_index, snapshot, 3] = 1
 
                         # attempt to fit an einasto profile
 
@@ -670,13 +626,12 @@ class SymphonyInterfacer(Interfacer):
                         except:
                             fit_nfw()
 
-                        cube[halo_id, snapshot, :3] = params
-                        cube[halo_id, snapshot, 4] = logrh
+                        cube[halo_index, snapshot, :3] = params
+                        cube[halo_index, snapshot, 4] = logrh
 
             np.savez_compressed(write_dir, cube)
 
     def make_acceleration_cube(self, write_dir):
-
         # check if the acceleration cube has already been made
 
         if os.path.exists(write_dir):
@@ -691,28 +646,25 @@ class SymphonyInterfacer(Interfacer):
 
             # loop over each snapshot
             for snapshot in tqdm(range(self.rs.shape[1])):
-
                 particles = self.particle_class.read(snapshot, mode="all")
 
                 # loop over each halo
-                for halo_id in range(self.rs.shape[0]):
-
+                for halo_index in range(self.rs.shape[0]):
                     # check if that halo is trackable
                     # i.e., is it flagged 'ok' by rockstar?
-                    is_tracked = self.rs[halo_id, snapshot]["ok"]
+                    is_tracked = self.rs[halo_index, snapshot]["ok"]
 
                     if is_tracked:
-
                         # Bulk subhalo properties
-                        pos = self.rs[halo_id, snapshot]["x"]
-                        vel = self.rs[halo_id, snapshot]["v"]
-                        mass = self.rs[halo_id, snapshot]["m"]
+                        pos = self.rs[halo_index, snapshot]["x"]
+                        vel = self.rs[halo_index, snapshot]["v"]
+                        mass = self.rs[halo_index, snapshot]["m"]
 
-                        rvir = self.rs[halo_id, snapshot]["rvir"]
+                        rvir = self.rs[halo_index, snapshot]["rvir"]
 
                         # select for bound particles only
-                        q = particles[halo_id]["x"]
-                        p = particles[halo_id]["v"]
+                        q = particles[halo_index]["x"]
+                        p = particles[halo_index]["v"]
 
                         dq = q - pos
                         dp = p - vel
@@ -740,7 +692,7 @@ class SymphonyInterfacer(Interfacer):
                             bins=radial_bin_count
                         )
 
-                        cube[halo_id, snapshot, :] = accelerations
+                        cube[halo_index, snapshot, :] = accelerations
             # save cube as compressed numpy array
             np.savez_compressed(write_dir, cube)
 
@@ -761,7 +713,6 @@ def rh_rvir_relation(rvir, addScatter=True):
 
 
 def get_bounded_particles(q, p, subhalo_pos, subhalo_vel, params):
-
     dq = q - subhalo_pos
     dp = p - subhalo_vel
 
