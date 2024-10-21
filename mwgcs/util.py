@@ -29,26 +29,26 @@ from .evolve import getMassLossRate, getTidalTimescale, getTidalFrequency
 #         self.df = asdf.AsdfFile()
 #         self.scale = 1.5
 #         self.n_sh = self.sim.rs.shape[0]
-    
+
 #     def createLookupTable(self, write_dir):
-        
+
 #         self.alpha = np.zeros(self.sim.rs.shape) - 1.
 #         self.rs = np.zeros(self.sim.rs.shape) - 1.
 #         self.logrho = np.zeros(self.sim.rs.shape) - 99.
-        
+
 #         for k in tqdm(range(self.n_sh)):
 #             ok_snaps = np.where(self.sim.rs[k, :]['ok'])[0]
 #             for sn in tqdm(ok_snaps):
 #                 prof = MassProfile(self.sim, sn, k)
-                
+
 #                 alpha, rs, logrho = np.nan, np.nan, np.nan
-                
+
 #                 try:
 #                     prof.fit()
 #                     alpha, rs, logrho = prof.profile_params
 #                 except ValueError:
 #                     print("Error: possible infinite residual, ignoring fit.")
-                
+
 #                 self.alpha[k, sn] = alpha
 #                 self.rs[k, sn] = rs
 #                 self.logrho[k, sn] = logrho
@@ -63,7 +63,7 @@ from .evolve import getMassLossRate, getTidalTimescale, getTidalFrequency
 
 # LinearNDInterpolatorExtrapolator.py
 # from https://gist.github.com/tunnell/90a83b7e1f894e8f882a029caece447b
-import scipy # sigh py 
+import scipy  # sigh py
 from scipy.interpolate import LinearNDInterpolator as LNDI
 
 
@@ -82,13 +82,14 @@ class Linear2DInterpolator(object):
         hull = self.lndi.tri.convex_hull.tolist()
         # Build a mask showing if a simplex has a side that
         # is in the convex hull.
-        self.is_convex_simplex = np.zeros(len(self.lndi.tri.simplices),
-                                          dtype=bool)
+        self.is_convex_simplex = np.zeros(len(self.lndi.tri.simplices), dtype=bool)
         for irow, row in enumerate(self.lndi.tri.simplices):
             rrow = row[[0, 1, 2, 0]]
             for pos in range(3):
-                if rrow[pos:pos + 2].tolist() in hull or \
-                        rrow[[pos + 1, pos]].tolist() in hull:
+                if (
+                    rrow[pos : pos + 2].tolist() in hull
+                    or rrow[[pos + 1, pos]].tolist() in hull
+                ):
                     self.is_convex_simplex[irow] = True
 
     def __call__(self, xi):
@@ -106,7 +107,9 @@ class Linear2DInterpolator(object):
         # the convex hull
         for i, drow in enumerate(self.lndi.tri.plane_distance(xi[mask])):
 
-            mi = np.max(drow[self.is_convex_simplex])  # Fixed if nearested isn't on hull
+            mi = np.max(
+                drow[self.is_convex_simplex]
+            )  # Fixed if nearested isn't on hull
             w = np.where(drow == mi)[0]
 
             if len(w) == 1 and self.is_convex_simplex[w]:
@@ -121,7 +124,9 @@ class Linear2DInterpolator(object):
         result_update = np.zeros((mask.sum(), 2))  # fixed
         for simple in np.unique(simplices):
             indices = np.where(simplices == simple)[0]
-            result_update[indices] = self._get_simplex_at_point(simple, xi[mask][indices])
+            result_update[indices] = self._get_simplex_at_point(
+                simple, xi[mask][indices]
+            )
 
         result[mask] = result_update
         return result
@@ -143,24 +148,31 @@ class Linear2DInterpolator(object):
 
         for i, value in enumerate(values[0]):
             # These two vectors are in the plane
-            v1 = (plane_points[2][0] - plane_points[0][0],
-                  plane_points[2][1] - plane_points[0][1],
-                  values[2][i] - values[0][i])
+            v1 = (
+                plane_points[2][0] - plane_points[0][0],
+                plane_points[2][1] - plane_points[0][1],
+                values[2][i] - values[0][i],
+            )
 
-            v2 = (plane_points[1][0] - plane_points[0][0],
-                  plane_points[1][1] - plane_points[0][1],
-                  values[1][i] - values[0][i])
+            v2 = (
+                plane_points[1][0] - plane_points[0][0],
+                plane_points[1][1] - plane_points[0][1],
+                values[1][i] - values[0][i],
+            )
 
             # the cross product is a vector normal to the plane
             cp = np.cross(v1, v2)
 
             # z corresponding to plane requires dot with norm = 0
             # (Norm) dot (position with only z unknown) = 0, solve.
-            extrapolated_points.append(values[0][i] + (- cp[0] * point[:, 0] - cp[1] * point[:, 1]) / cp[2])
+            extrapolated_points.append(
+                values[0][i] + (-cp[0] * point[:, 0] - cp[1] * point[:, 1]) / cp[2]
+            )
 
         np.array(extrapolated_points).T
 
         return np.array(extrapolated_points).T
+
 
 # Nearest neighbor outside of convex hull
 class LinearNDInterpolatorExt(object):

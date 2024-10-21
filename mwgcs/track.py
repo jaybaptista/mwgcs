@@ -16,9 +16,11 @@ import symlib
 from .sym import Simulation
 from .form import lognorm_hurdle, sampleMilkyWayGCMF, sampleDwarfGCMF
 from .evolve import getMassLossRate, getTidalTimescale, getTidalFrequency
+
 # from .fit import MassProfile
 
 ########################################################################################################
+
 
 class TreeTracker(abc.ABC):
 
@@ -37,14 +39,12 @@ class SymphonyTracker(TreeTracker):
         print("Reading in tree for tracking")
         super().__init__(self, catalog_path)
 
-    
-    
 
 ########################################################################################################
 # def spawnSubhaloGC(ms):
 #     mgc = lognorm_hurdle(ms)
 #     gcm, _ = sampleMilkyWayGCMF(ms)
-    
+
 # class GCSystem():
 #     def __init__(self, sim: Simulation, rsid: int):
 #         self.sim = sim
@@ -54,51 +54,51 @@ class SymphonyTracker(TreeTracker):
 
 #         if self.infall_snap == -1:
 #             raise ValueError("Subhalo has not infallen, no tracking possible (at this point)...")
-        
+
 #         # get stellar mass of the system
 #         ok_rs = self.sim.rs['ok'][self.rsid]
-        
+
 #         # add max_snap variable
 #         # snaps = np.arange(236)[ok_rs]
 
 #         self.disrupt_snap = np.arange(236)[ok_rs][-1]
 
 #         self.snaps = np.arange(self.infall_snap, 236, step=1, dtype=int)
-        
+
 #         times = sim.cosmo.hubbleTime(sim.z)
 #         times = times[self.snaps]
 #         self.dt = times[1:] - times[:-1]
-        
+
 #         # self.snaps = snaps[snaps >= self.infall_snap]
 
 #         # talk to phil about this later
 #         self.ms_infall = self.sim.um["m_star"][self.rsid, self.infall_snap]
-        
-        # add max_snap variable
-        # snaps = np.arange(236)[ok_rs]
 
-        # self.disrupt_snap = np.arange(236)[ok_rs][-1]
+# add max_snap variable
+# snaps = np.arange(236)[ok_rs]
 
-        # self.snaps = np.arange(self.infall_snap, 236, step=1, dtype=int)
-        
-        # times = sim.cosmo.hubbleTime(sim.z)
-        # times = times[self.snaps]
-        # self.dt = times[1:] - times[:-1]
-        
-        # # self.snaps = snaps[snaps >= self.infall_snap]
+# self.disrupt_snap = np.arange(236)[ok_rs][-1]
 
-        # # talk to phil about this later
-        # self.ms_infall = self.sim.um["m_star"][self.rsid, self.infall_snap]
-        
-        # self.mgc = lognorm_hurdle(self.ms_infall)# system mass
-        # self.gcm, self.gc_mass_range = sampleDwarfGCMF(self.mgc)
-        
+# self.snaps = np.arange(self.infall_snap, 236, step=1, dtype=int)
+
+# times = sim.cosmo.hubbleTime(sim.z)
+# times = times[self.snaps]
+# self.dt = times[1:] - times[:-1]
+
+# # self.snaps = snaps[snaps >= self.infall_snap]
+
+# # talk to phil about this later
+# self.ms_infall = self.sim.um["m_star"][self.rsid, self.infall_snap]
+
+# self.mgc = lognorm_hurdle(self.ms_infall)# system mass
+# self.gcm, self.gc_mass_range = sampleDwarfGCMF(self.mgc)
+
 #         self.gcm = np.array(self.gcm)
 #         self.gc_mass_range = np.array(self.gc_mass_range)
 
 #         stars, gals, ranks = symlib.tag_stars(sim.sim_dir, sim.gal_halo, target_subs=[self.rsid])
 
-#         # this is the z=0 distribution of stars... 
+#         # this is the z=0 distribution of stars...
 #         # we can choose a PDF based on empirical models in a later update
 #         prob = stars[self.rsid]['mp'] / np.sum(stars[self.rsid]['mp'])
 
@@ -107,7 +107,7 @@ class SymphonyTracker(TreeTracker):
 #             size = len(self.gcm),
 #             replace = False,
 #             p = prob)
-        
+
 
 #         # tag_idx is the particle index
 #         self.tag_idx = tag_idx
@@ -129,19 +129,19 @@ class SymphonyTracker(TreeTracker):
 #                 self.q[:, i] = pos
 
 #         return self.t, self.q
-        
+
 
 #     def evolve(self, index, snap=None):
 #         # index here is the index of the tag_idx array
 #         if snap is None:
 #             snap = self.sim.buffer_snap
-        
+
 #         self.t = np.zeros(len(self.snaps))
 #         self.r = np.zeros(len(self.snaps))
 #         self.lam = np.zeros(len(self.snaps))
 #         self.potential_flag = np.ones(len(self.snaps)+1, dtype=bool)
 #         self.profile_params = []
-        
+
 #         self.evolved_mass = np.zeros(len(self.snaps)+1)
 #         self.evolved_mass[0] = self.gcm[index]
 
@@ -153,25 +153,25 @@ class SymphonyTracker(TreeTracker):
 #             subhalo_flag = sn >= self.disrupt_snap
 
 #             potential_sh_id = self.rsid
-            
+
 #             if subhalo_flag:
 #                 if sn == self.disrupt_snap:
 #                     print('Subhalo disrupted... switching potential.')
 #                 potential_sh_id = 0
-            
+
 #             q_subhalo = self.sim.rs[self.rsid, sn]['x']
 #             q_ext     = self.sim.rs[0, sn]['x']
-            
+
 #             r_subhalo = np.sqrt(np.sum((pos - q_subhalo)**2))
 #             r_ext     = np.sqrt(np.sum((pos - q_ext)**2))
-            
+
 #             m = self.evolved_mass[i]
 
 #             # create a lookup table for this
 #             # consider alternative constructor for MassProfile class
 #             self.profile = MassProfile(self.sim, sn, potential_sh_id)
 #             self.profile.fit()
-            
+
 #             # todo: add baryons
 #             lam = self.profile.profile.tidalStrength(
 #                 [r_subhalo, 0., 0.],
@@ -197,10 +197,9 @@ class SymphonyTracker(TreeTracker):
 #             self.evolved_mass[i+1] = m + mass_loss
 #             self.t[i] += self.dt[i]
 #             self.r[i] = r_ext if subhalo_flag else r_subhalo
-            
+
 #             self.profile_params.append(self.profile.profile_params)
 
 #         print("done")
 
 ########################################################################################################
-

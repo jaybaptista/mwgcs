@@ -36,134 +36,6 @@ class Interfacer(abc.ABC):
         # each entry is a position in [x, y, z] galactocentric
         self.sh_pos = positions
 
-    @abc.abstractmethod
-    def write_halo_catalog(self, write_dir, **kwargs):
-        # I don't really need this... deprecate when necessary.
-
-        # if self.subhalo_positions is None:
-        #     raise ValueError("No subhalo positions set!")
-
-        tree = {
-            "halo_id": self.halo_id,
-            "infall_snap": self.infall_snap,
-            "infall_mass": self.infall_mass,
-            "disrupt_snap": self.disrupt_snap,
-            # "sh_pos": self.subhalo_positions
-        }
-
-        _af = asdf.AsdfFile(tree)
-        print("Saving halo catalog...")
-        _af.write_to(write_dir)  # reminder: compress this later
-
-        self.halo_catalog = _af
-
-    @abc.abstractmethod
-    def write_cluster_catalog(self, gcs_mf, gcmf, write_dir=None, **kwargs):
-        # loop over the infall masses
-
-        tree = {
-            "halo_id": [],
-            "infall_snap": [],
-            "disrupt_snap": [],
-            "gc_mass": [],
-            "particle_index": [],
-            "gc_index": [],
-        }
-
-        for halo_id, m_i in enumerate(tqdm(self.halo_catalog["infall_mass"])):
-            # generate GC masses
-            masses = np.array(gcmf(m_i, system_mass_sampler=gcs_mf))
-
-            for mass in masses:
-                tree["halo_id"].append(halo_id)
-                tree["infall_snap"].append(self.halo_catalog["infall_snap"][halo_id])
-                tree["disrupt_snap"].append(self.halo_catalog["disrupt_snap"][halo_id])
-                tree["gc_mass"].append(mass)
-                tree["particle_index"].append(None)
-                tree["gc_index"].append(None)
-
-        tree["gc_index"] = np.arange(len(tree["gc_index"]))
-
-        _af = asdf.AsdfFile(tree)
-
-        if write_dir is not None:
-            print(
-                "Saving cluster catalog... NOTE—Cluster indices not yet assigned. Run `assign_cluster_tags` (assuming your particle reader has been coded in) to assign indices."
-            )
-            _af.write_to(write_dir)
-
-        self.cluster_catalog = _af
-
-    @abc.abstractmethod
-    def assign_cluster_tags(self, **kwargs):
-        # This should interface w/ self.cluster_catalog
-        # as well as your particle reader.
-
-        pass
-
-    @abc.abstractmethod
-    def write_tracking_catalog(self, write_dir, **kwargs):
-        # This uses the tagged GC catalog to track corresponding GCs
-        # across snapshots.
-
-        # At each snapshot, the particle data is read in for tracking purposes.
-        # Additionally, each subhalo at a given snapshot is fit to a
-        # generic Profile.
-
-        self.tracking_catalog = {
-            "snapshot": [],
-            "halo_id": [],
-            "pos": [],
-            "vel": [],
-            "particle_index": [],
-            "gc_index": [],
-        }
-
-    # @abc.abstractmethod
-    # def write_potential_catalog(self, write_dir, **kwargs):
-    #     self.potential_catalog = {
-    #         # This uses the tagged GC catalog to fit relevant su
-    #         # across snapshots.
-    #         "snapshot": [],
-    #         "halo_id": [],
-    #         "pos": [],
-    #         "vel": [],
-    #         "fit_param": [],
-    #         "type": [],
-    #         "logrh": [],
-    #     }
-
-    # @abc.abstractmethod
-    # def write_acceleration_catalog(self, write_dir, **kwargs):
-    #     self.acc_catalog = {
-    #         # This uses the tagged GC catalog to fit relevant acc
-    #         # across snapshots.
-    #             "snapshot": [],
-    #             "halo_id": [],
-    #             "radii": [],
-    #             "acc": []
-    #         }
-
-    # @abc.abstractmethod
-    # def write_galaxy_parameters(self, write_dir, **kwargs):
-
-    #     self.gal_params = {
-    #             "snapshot": [],
-    #             "halo_id": [],
-    #             "params": [],
-    #         }
-
-    # @abc.abstractmethod
-    # def write_tidal_strength_catalog(self, write_dir, **kwargs):
-    #     self.lambda_catalog = {
-    #         # This uses the tagged GC catalog to fit relevant tidal strengths
-    #         # across snapshots.
-    #         "snapshot": [],
-    #         "halo_id": [],
-    #         "radii": [],
-    #         "lambda": [],
-    #     }
-
 
 import symlib
 from colossus.cosmology import cosmology
@@ -213,11 +85,6 @@ class SymphonyInterfacer(Interfacer):
         self.infall_mass = infall_mass
         self.disrupt_snaps = disrupt_snaps
 
-        # self.write_cluster_catalog(gcs_mf = EadieSampler, gcmf = DwarfGCMF, write_dir = './cluster.asdf')
-        # self.set_subhalo_infall(halo_id, infall_snaps, infall_mass, disrupt_snaps)
-        # self.write_halo_catalog("./halo_catalog.asdf")
-        # self.write_cluster_catalog(gcs_mf = EadieSampler, gcmf = DwarfGCMF, write_dir = './cluster.asdf')
-
         # Get the galaxy halo model for star tagging
         self.gal_halo = symlib.GalaxyHaloModel(
             symlib.StellarMassModel(
@@ -232,11 +99,6 @@ class SymphonyInterfacer(Interfacer):
                 symlib.GaussianCoupalaCorrelation(),
             ),
         )
-
-        # self.assign_cluster_tags(write_dir="./tagged_cluster.asdf")
-        # self.write_tracking_catalog(write_dir="./tracked_clusters.asdf")
-        # self.write_potential_catalog(write_dir = './tracked_potentials.asdf')
-        # self.write_acceleration_catalog(write_dir = './tracked_acc.asdf')
 
         self.assign_particle_tags(
             EadieSampler, DwarfGCMF, write_dir="./tagged_particles.npz"
@@ -378,7 +240,7 @@ class SymphonyInterfacer(Interfacer):
         array_gc_masses = np.hstack(_array_gc_masses)  # float64
 
         # create structured array
-        # dtype = np.dtype([('halo_id', int), ('infall_snap', int), ('gc_mass', float)])
+
         dtype = np.dtype(
             [
                 ("halo_index", int),
@@ -461,6 +323,7 @@ class SymphonyInterfacer(Interfacer):
                     # NOTE: refactor particle_id to ``nimbus_index``
                     particle_tag_arr["nimbus_index"][k] = particle_tag_index
 
+            self.particle_tags = np.load(write_dir)["arr_0"]
             np.savez_compressed(write_dir, particle_tag_arr)
 
     def track_particles(self, write_dir):
@@ -472,7 +335,9 @@ class SymphonyInterfacer(Interfacer):
             particle_tag_indices = np.arange(len(self.particle_tags))
 
             # this structured array has shape (snapshot, particle index, position(3), velocity(3))
-            tracking_cube = np.zeros((self.rs.shape[1], len(particle_tag_indices), 6))
+            tracking_cube = (
+                np.zeros((self.rs.shape[1], len(particle_tag_indices), 6)) * np.nan
+            )
 
             # loop over each snapshot
             for snapshot in tqdm(range(self.rs.shape[1])):
@@ -490,13 +355,15 @@ class SymphonyInterfacer(Interfacer):
 
                 ok = self.particle_tags["infall_snap"] <= snapshot
 
-                i_t = (
-                    self.particle_tags["nimbus_index"][ok]
-                    + starts[self.particle_tags["halo_index"][ok]]
-                )
+                if ok.any():
 
-                tracking_cube[snapshot, ok, :3] = particles[i_t]["x"]
-                tracking_cube[snapshot, ok, 3:] = particles[i_t]["v"]
+                    i_t = (
+                        self.particle_tags["nimbus_index"][ok]
+                        + starts[self.particle_tags["halo_index"][ok]]
+                    )
+
+                    tracking_cube[snapshot, ok, :3] = part_flat[i_t]["x"]
+                    tracking_cube[snapshot, ok, 3:] = part_flat[i_t]["v"]
 
             np.savez_compressed(write_dir, tracking_cube)
 
@@ -606,27 +473,34 @@ class SymphonyInterfacer(Interfacer):
                             )
 
                             l_conv = np.max(self.getConvergenceRadius(snapshot))
-                            params = profile.fit(l_conv)
+                            fit_output = profile.fit(l_conv)
 
+                            params = [
+                                fit_output["alpha"],
+                                fit_output["Rs"],
+                                fit_output["logScaleDensity"],
+                            ]
+
+                            print("Einasto: ", params)
+                            cube[halo_index, snapshot, :3] = params
                             cube[halo_index, snapshot, 3] = 0
 
                         def fit_nfw():
-                            params = {
-                                "mvir": self.rs[halo_index, snapshot]["m"],
-                                "rvir": self.rs[halo_index, snapshot]["rvir"],
-                                "cvir": self.rs[halo_index, snapshot]["cvir"],
-                            }
-
+                            print("Unable to fit Einasto, switching to NFW.")
+                            params = [
+                                self.rs[halo_index, snapshot]["m"],
+                                self.rs[halo_index, snapshot]["rvir"],
+                                self.rs[halo_index, snapshot]["cvir"],
+                            ]
+                            print("NFW: ", params)
+                            cube[halo_index, snapshot, :3] = params
                             cube[halo_index, snapshot, 3] = 1
-
-                        # attempt to fit an einasto profile
 
                         try:
                             fit_einasto()
                         except:
                             fit_nfw()
 
-                        cube[halo_index, snapshot, :3] = params
                         cube[halo_index, snapshot, 4] = logrh
 
             np.savez_compressed(write_dir, cube)
