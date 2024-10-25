@@ -140,8 +140,8 @@ class SymphonyHaloProfile(SphericalHaloProfile):
             radii,
             logrho,
             p0=[0.18, 10, 5],  # some random values
-            bounds=((0.01, 0.01, -2.0), (0.3, 100.0, 10.0)),
-            maxfev=100000,
+            bounds=((0.175, 0.01, 1.0), (0.185, 50., 10.)),
+            maxfev=1000,
             nan_policy="omit",
         )
         alpha, Rs, logScaleDensity = popt
