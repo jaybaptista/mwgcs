@@ -367,68 +367,6 @@ class SymphonyInterfacer(Interfacer):
 
             np.savez_compressed(write_dir, tracking_cube)
 
-    def write_tracking_catalog(self, write_dir, **kwargs):
-        super().write_tracking_catalog(write_dir, **kwargs)
-
-        if os.path.exists(write_dir):
-            print("Found archived tracking catalog...")
-            self.tracking_catalog = asdf.open(write_dir)
-        else:
-            _infall_snaps = np.array(self.cluster_catalog["infall_snap"])
-
-            # The starting snapshot is the first snapshot where the first subhalo with
-            # a GC infalls.
-
-            start_snap = np.min(
-                np.unique(_infall_snaps[np.where(_infall_snaps != -1)[0]])
-            )
-            track_snaps = self.snapshots[start_snap:]
-
-            def trackGCProperties(
-                snapshot, halo_id, particle_index, gc_index, pos, vel
-            ):
-                self.tracking_catalog["snapshot"].append(snapshot)
-                self.tracking_catalog["halo_id"].append(halo_id)
-                self.tracking_catalog["gc_index"].append(gc_index)
-                self.tracking_catalog["particle_index"].append(particle_index)
-                self.tracking_catalog["pos"].append(pos)  # physical units pls
-                self.tracking_catalog["vel"].append(vel)
-
-            for snap in tqdm(track_snaps):
-                particles = self.particle_class.read(snap, mode="stars")
-
-                # loop through every GC in the catalog
-
-                for i, particle_index in enumerate(
-                    self.cluster_catalog["particle_index"]
-                ):
-                    # should we track the GC at this snapshot
-                    # i.e., has the GC fallen in yet and if it ever infalls?
-
-                    is_tracked = (
-                        (particle_index is not None)
-                        & (self.cluster_catalog["infall_snap"][i] <= snap)
-                        & (self.cluster_catalog["infall_snap"][i] != -1)
-                    )
-
-                    if is_tracked:
-                        pos = particles[self.cluster_catalog["halo_id"][i]]["x"][
-                            particle_index
-                        ]
-                        vel = particles[self.cluster_catalog["halo_id"][i]]["v"][
-                            particle_index
-                        ]
-
-                        trackGCProperties(
-                            snap,
-                            self.cluster_catalog["halo_id"][i],
-                            self.cluster_catalog["particle_index"][i],
-                            self.cluster_catalog["gc_index"][i],
-                            pos,
-                            vel,
-                        )
-            _af = asdf.AsdfFile(self.tracking_catalog)
-            _af.write_to(write_dir, all_array_compression="zlib")
 
     def make_potential_cube(self, write_dir):
         if os.path.exists(write_dir):

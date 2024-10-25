@@ -343,13 +343,13 @@ class SymphonyOrbit(Orbit):
         # let i be the current snapshot, and k = i+1, because I already have
         # variables with numbers
 
-        pot_i_type = self.pot_cube[self.gc_index, snapshot, 3]
-        pot_i_params = self.pot_cube[self.gc_index, snapshot, :3]
-        pot_i_rh = np.power(10., self.pot_cube[self.gc_index, snapshot, 4])
+        pot_i_type = self.pot_cube[central_id, snapshot, 3]
+        pot_i_params = self.pot_cube[central_id, snapshot, :3]
+        pot_i_rh = np.power(10., self.pot_cube[central_id, snapshot, 4])
 
-        pot_k_type = self.pot_cube[self.gc_index, snapshot + 1, 3]
-        pot_k_params = self.pot_cube[self.gc_index, snapshot + 1, :3]
-        pot_k_rh = np.power(10., self.pot_cube[self.gc_index, snapshot + 1, 4])
+        pot_k_type = self.pot_cube[central_id, snapshot + 1, 3]
+        pot_k_params = self.pot_cube[central_id, snapshot + 1, :3]
+        pot_k_rh = np.power(10., self.pot_cube[central_id, snapshot + 1, 4])
 
         def get_potential(pot_type, pot_params):
             if pot_type == 0:
@@ -372,6 +372,10 @@ class SymphonyOrbit(Orbit):
         lam_i = get_tidal_strength(hess_i)
 
         gal_k = Plummer(self.um[central_id, snapshot + 1]['m_star'], Plummer.half_radius_to_scale(pot_k_rh))
+        self._test_pot_k = pot_k
+        self._test_gal_k = gal_k
+        self._test_r_k = r_k
+        
         hess_k = pot_k.hessian(r_k) + gal_k.hessian(r_k)
         lam_k = get_tidal_strength(hess_k)
 
@@ -379,7 +383,7 @@ class SymphonyOrbit(Orbit):
         m_t = (lam_k - lam_i) / (t_k - t_i)
 
         # interpolate across time
-        evaluated_strength = log_point_slope(t, lam_k, t_k, m_t)
+        evaluated_strength = m_t * (t - t_k) + lam_k
 
         return evaluated_strength
 
@@ -584,7 +588,6 @@ def get_log_slope(y1, y2, x1, x2):
 # returns the power law given a point on the line and the power law slope
 def log_point_slope(x, yk, xk, mk):
     return np.log10(yk) + mk * (np.log10(x) - np.log10(xk))
-
 
 # returns the power law given that the x-axis is linear scale
 def semilog_point_slope(x, yk, xk, mk):
