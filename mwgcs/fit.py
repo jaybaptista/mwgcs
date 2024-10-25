@@ -8,7 +8,6 @@ from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 from scipy.special import gamma, gammaincc
 from scipy.stats import norm
-import gravitree
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsc
