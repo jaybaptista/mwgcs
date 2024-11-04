@@ -5,9 +5,12 @@ mwgcs/__init__.py
 mwgcs/_tmp.py
 mwgcs/config.py
 mwgcs/cy_evolve.c
+mwgcs/dynamics.py
 mwgcs/evolve.py
 mwgcs/fit.py
 mwgcs/form.py
+mwgcs/interface.py
+mwgcs/sampler.py
 mwgcs/setup.py
 mwgcs/sym.py
 mwgcs/track.py
