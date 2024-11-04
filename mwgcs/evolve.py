@@ -2,7 +2,7 @@ import numpy as np
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--verbose"]})
-from .cy_evolve import evolveMass
+from .cy_evolve import evolveMass, evolveMassGG
 import astropy.units as u
 
 
@@ -52,12 +52,24 @@ def CMassLoss(m0, tidalStrength, steps, dt):
 
     dt = dt.to(u.Gyr).value
 
-    masses = np.zeros(steps, dtype=np.double)
+    masses = np.zeros(steps, dtype=np.float64)
     evolveMass(m0, tidalStrength, steps, dt, masses)
 
     return masses
 
+def CMassLossGG(m0, tidalStrength, steps, dt):
+    # get tidalStrength into okay units
 
+    tidalStrength = tidalStrength.to(u.Gyr ** (-2)).value
+    tidalStrength = np.array(tidalStrength, dtype=np.double)
+
+    dt = dt.to(u.Gyr).value
+
+    masses = np.zeros(steps, dtype=np.double)
+    evolveMassGG(m0, tidalStrength, steps, dt, masses)
+
+    return masses
+    
 def mdot_gg23(m, tidalStrength, m_i=3.5e4):
     x = 0.67
     y = 1.33

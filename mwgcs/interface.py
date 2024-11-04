@@ -169,7 +169,6 @@ class SymphonyInterfacer(Interfacer):
         H0 = self.params["h100"] * factor
 
         # Get the present day critical density
-        # _G = c.G.to(u.kpc**3 / u.Msun / u.s**2).value
         _G = 4.517103049894965e-39  # in units of kpc3 / Msun / s2
         rho_crit = (3 / (8 * np.pi * _G)) * (H0) ** 2
 

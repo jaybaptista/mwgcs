@@ -186,7 +186,7 @@ class SymphonyOrbit(Orbit):
             return 0.0
 
         # current radius
-        r = np.sqrt(np.sum(q**2))
+        r = np.sqrt(np.sum(q**2, axis=0))
 
         acc_i = self.acc_cube[central_id, snapshot, :]
         r_i = self.rs[central_id, snapshot]["rvir"] * self.radial_bins

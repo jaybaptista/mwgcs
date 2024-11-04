@@ -80,12 +80,14 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=2.0, system_mass_sampler=EadieSampl
 # Samplers for the stream phase space distribution
 
 
-def tidalRadius(r, msat, pot):
+def tidalRadius(r, msat, profile):
 
-    q_ref = [r.to(u.kpc).value, 0.0, 0.0] * u.kpc
-    mass = pot.mass_enclosed(q_ref).to(u.Msun)
-    density = pot.density(q_ref).to(u.Msun / u.kpc**3)
-    logMassSlope = ((r / mass) * 4 * np.pi * r**2 * density).decompose()
+    q_ref = [r, 0.0, 0.0]
+
+    mass = profile.mass(r)
+    density = profile.density(r)
+    
+    logMassSlope = ((r / mass) * 4 * np.pi * r**2 * density)
 
     f = 3 - logMassSlope
 
@@ -95,17 +97,19 @@ def tidalRadius(r, msat, pot):
 # note this is only for the toy model, working w
 # sim data needs to use the Profile class to interface
 # properly w all the Einasto potentials
-def ga(r, pot):
+def ga(r, profile):
+    
     # get hessian at [r, 0, 0]
-    q_ref = [
-        r.value,
-        0.0,
-        0.0,
-    ] * u.kpc
-    d2phi_dr2 = pot.hessian(q_ref)[0, 0].to(u.Myr ** (-2))
-    v_circ = pot.circular_velocity(q_ref)
-    orbital_freq2 = ((v_circ / r) ** 2).to(u.Myr ** (-2))
+    q_ref = [r, 0.0, 0.0]
+    
+    d2phi_dr2 = profile.hessian(q)[0, 0]
+    
+    _G = 4.498502151469554e-12  # units of kpc3 / (Msun Myr2)
+    
+    v_circ = np.sqrt(_G * profile.mass(r) / r)
+    orbital_freq2 = ((v_circ / r) ** 2)
     g_a = orbital_freq2 - d2phi_dr2
+    
     return g_a
 
 
@@ -133,7 +137,7 @@ def sample_k(r_apo, r_peri, pot):
 
     k_r_sigma = k_vt_sigma = get_disp(Y)
 
-    k_z_mu = k_vz_mu = 0.0  # symmetry
+    k_z_mu = k_vz_mu = 0.0 # symmetry
     k_z_sigma = k_vz_sigma = 0.5
 
     # these are set to zero in literature
@@ -205,3 +209,56 @@ def ejection_rate(theta_r, r_apo, r_peri, pot):
     alpha = _Racc ** (0.55)
     x = f_t() * _Racc
     theta_mid = -0.1 + 0.7 * (x / (7 + x))
+
+############
+
+def cylindrical_to_cart_w(w):
+    """
+    Convert a 6D phase space position from cylindrical (R, phi, z, v_R, v_phi, v_z)
+    to cartesian coordinates (x, y, z, v_x, v_y, v_z).
+
+    Parameters:
+    - w: array-like, shape (6,), representing the phase space vector in cylindrical coordinates.
+
+    Returns:
+    - numpy array, shape (6,), representing the phase space vector in cartesian coordinates.
+    """
+    R, phi, z, v_R, v_phi, v_z = w
+    
+    # Cylindrical to Cartesian position conversion
+    x = R * np.cos(phi)
+    y = R * np.sin(phi)
+    
+    # Cylindrical to Cartesian velocity conversion
+    v_x = v_R * np.cos(phi) - v_phi * np.sin(phi)
+    v_y = v_R * np.sin(phi) + v_phi * np.cos(phi)
+    
+    return np.array([x, y, z, v_x, v_y, v_z])
+
+def cartesian_to_cyl_w(w):
+    """
+    Convert a 6D phase space position from cartesian (x, y, z, v_x, v_y, v_z)
+    to cylindrical coordinates (R, phi, z, v_R, v_phi, v_z), with handling for NaNs.
+
+    Parameters:
+    - w: array-like, shape (6,), representing the phase space vector in cartesian coordinates.
+
+    Returns:
+    - numpy array, shape (6,), representing the phase space vector in cylindrical coordinates.
+      If R is close to zero, v_R and v_phi are set to NaN to handle undefined cases.
+    """
+    x, y, z, v_x, v_y, v_z = w
+    
+    # Cartesian to Cylindrical position conversion
+    R = np.sqrt(x**2 + y**2)
+    phi = np.arctan2(y, x)
+    
+    # Cartesian to Cylindrical velocity conversion
+    if R > 1e-10:  # Avoid division by zero
+        v_R = (x * v_x + y * v_y) / R
+        v_phi = (x * v_y - y * v_x) / R
+    else:
+        v_R = 0
+        v_phi = 0
+    
+    return np.array([R, phi, z, v_R, v_phi, v_z])

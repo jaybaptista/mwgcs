@@ -16,9 +16,11 @@ import jax.scipy as jsc
 from gala.potential import PlummerPotential
 from gala.units import galactic
 
+# TODO: fix all G references. 
 
 ########################################################################################################
 
+_G = 4.498502151469554e-06 # units of kpc^3/Gyr^2/Msun
 
 class SphericalHaloProfile(abc.ABC):
 
@@ -177,8 +179,8 @@ class Profile(abc.ABC):
 
     def acceleration(self, r, softening=0.0):
         _menc = self.mass(r)
-        _g = 1.3938323614347172e-22  # in units of kpc^2/Msun * (km/s^2)
-        return _g * _menc / (r**2 + softening**2)
+        # _g = 1.3938323614347172e-22  # in units of kpc^2/Msun * (km/s^2)
+        return _G * _menc / (r**2 + softening**2)
 
     def hessian(self, q):
         r = np.sqrt(np.sum(q**2, axis=0))
@@ -266,8 +268,8 @@ class Einasto(Profile):
         r = jnp.sqrt(jnp.sum(q**2, axis=0))
         
         _a = self.alpha
-        # _g = 4.498502151469554e-06 # units of kpc^3/Gyr^2/Msun
-        _g = 4.30091727e-06  # in units of kpc/Msun * (km/s)^2
+        
+        # _g = 4.30091727e-06  # in units of kpc/Msun * (km/s)^2
 
         scaleDensity = 10**self.logScaleDensity
 
