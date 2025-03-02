@@ -98,15 +98,17 @@ class SphericalHaloProfile(abc.ABC):
 
         return bin_radius, bin_density
 
-    def getRadialAccelerationProfile(self, bins=100):
-
+    def getMassProfile(self, bins=100):
         sampling_radii = np.logspace(-3, 5, bins) * self.rvir
         enclosed_mass = np.vectorize(self.menc)
         mass = enclosed_mass(sampling_radii)
+        return mass
 
+    def getRadialAccelerationProfile(self, bins=100):
+        sampling_radii = np.logspace(-3, 5, bins) * self.rvir
+        mass = self.getMassProfile(bins) 
         _G = 4.498502151469554e-12  # units of kpc3 / (Msun Myr2)
         acceleration = _G * mass / (sampling_radii**2)  # in kpc/Myr2
-
         return acceleration
 
     @abc.abstractmethod
@@ -365,7 +367,7 @@ class Plummer(Profile):
 # helper functions
 #######################################
 
-def getTidalTensor(hess):
+def get_tidal_tensor(hess):
     # hess = potential.hessian(r)
     tidal_tensor = hess - ((1 / 3) * jnp.trace(hess) * jnp.identity(3))
     return tidal_tensor

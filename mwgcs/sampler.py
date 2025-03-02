@@ -2,30 +2,42 @@ import abc
 import numpy as np
 from scipy.integrate import quad
 from scipy.interpolate import interp1d
-from scipy.stats import norm
+from scipy.stats import norm, uniform
 
 #################################################################
 # Samplers for the GC System mass, should return a single value for mass
 
-
 def EadieSampler(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
+
+    # GC predictor
+    p = (1 + np.exp(-1 * (b0 + b1 * np.log10(stellar_mass))))**(-1)
+
+    if uniform.rvs() > p: # i.e., failure to draw
+        return 0.
+    
     system_mass = (
         1
         / (1 + np.exp(-(b0 + (b1 * np.log10(stellar_mass)))))
         * (g0 + (g1 * np.log10(stellar_mass)))
     )
-    return system_mass
+    
+    return 10**system_mass
 
 
 #################################################################
 # Samplers for the individual GC tags, should return a number of GC masses
-def DwarfGCMF(stellar_mass, mass_light_ratio=2.0, system_mass_sampler=EadieSampler):
+def DwarfGCMF(stellar_mass, mass_light_ratio=1.88, system_mass_sampler=EadieSampler):
 
     # NOTE—make sure that you have a keyword "system_mass_sampler"
     # which is a function that takes in stellar mass in Msun
     # and outputs the bulk GC system mass.
 
-    gc_peak_mass = 10 ** (system_mass_sampler(stellar_mass))
+    sys_mass = system_mass_sampler(stellar_mass)
+
+    if sys_mass == 0.0:
+        return None
+
+    gc_peak_mass = sys_mass
 
     min_gband = -5.5
     max_gband = -9.5
@@ -33,11 +45,12 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=2.0, system_mass_sampler=EadieSampl
     # min_mass = mass_light_ratio * 10**(0.4*(5.03 - max_gband))
     # max_mass = mass_light_ratio * 10**(0.4*(5.03 - min_gband))
 
-    # min_mass = mass_light_ratio * 10**(0.4*(5.03 - max_gband))
-    # max_mass = mass_light_ratio * 10**(0.4*(5.03 - min_gband))
+    min_mass = mass_light_ratio * 10**(0.4*(5.03 - min_gband))
+    # min_mass = 1e3
+    max_mass = mass_light_ratio * 10**(0.4*(5.03 - max_gband))
 
-    min_mass = 1e4
-    max_mass = 1e6
+    # min_mass = 1e3 # let's be generous and say the minimum GC mass is 1000 Msun
+    # max_mass = 1e6
 
     gc_mass_range = np.linspace(min_mass, max_mass, 100)
 
@@ -81,16 +94,11 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=2.0, system_mass_sampler=EadieSampl
 
 
 def tidalRadius(r, msat, profile):
-
     q_ref = [r, 0.0, 0.0]
-
     mass = profile.mass(r)
     density = profile.density(r)
-    
     logMassSlope = ((r / mass) * 4 * np.pi * r**2 * density)
-
     f = 3 - logMassSlope
-
     return (msat / (f * mass)) ** (1 / 3) * r
 
 
@@ -118,18 +126,18 @@ def f_t():
     return 0.8
 
 
-def Racc(r_apo, r_peri, pot):
-    return (ga(r_peri, pot) / ga(r_apo, pot)).decompose().value
+def Racc(r_apo, r_peri, profile):
+    return (ga(r_peri, profile) / ga(r_apo, profile))
 
 
 # @np.vectorize
-def sample_k(r_apo, r_peri, pot):
+def sample_k(r_apo, r_peri, profile):
 
     # optimized Kupper+12 initial conditions
     k_r_mu = 2.0
     k_vt_mu = 0.3
     # dispersions
-    Y = 0.15 * (f_t() ** 2) * (Racc(r_apo, r_peri, pot)) ** (2 / 3)
+    Y = 0.15 * (f_t() ** 2) * (Racc(r_apo, r_peri, profile)) ** (2 / 3)
 
     @np.vectorize
     def get_disp(x):
@@ -151,7 +159,8 @@ def sample_k(r_apo, r_peri, pot):
     return k_phi, k_vr, k_r, k_vt, k_z, k_vz
 
 
-def w_ejecta(w_sat, m_sat, pot, r_apo, r_peri):
+def w_ejecta(w_sat, m_sat, profile, r_apo, r_peri):
+    
     cyl = w_sat.represent_as("cylindrical")
 
     r_sat, phi_sat, z_sat = cyl.pos.rho, cyl.pos.phi, cyl.pos.z
