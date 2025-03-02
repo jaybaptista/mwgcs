@@ -92,6 +92,38 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=1.88, system_mass_sampler=EadieSamp
 #################################################################
 # Samplers for the stream phase space distribution
 
+# Chen model
+
+def ChenSampler(r_tidal):
+    r_mu = 1.6 * r_tidal
+    phi_mu = 30.
+    theta_mu = 0.
+    alpha_mu = 20.
+    beta_mu = 0.
+
+    pearson_R = -0.7
+
+    r_sigma = 0.35 * r_tidal
+    phi_sigma = 23.
+    theta_sigma = 12.
+    alpha_sigma = 20.
+    beta_sigma = 22.
+
+    C_r_phi = pearson_R * r_sigma * phi_sigma
+    C_r_theta = pearson_R * r_sigma * theta_sigma
+    C_r_alpha = pearson_R * r_sigma * alpha_sigma
+    C_r_beta = pearson_R * r_sigma * beta_sigma
+
+    cov = np.diag([r_sigma, phi_sigma, theta_sigma, alpha_sigma, beta_sigma])**2
+
+    cov[0, 1] = cov[1, 0] = C_r_phi
+    cov[0, 2] = cov[2, 0] = C_r_theta
+    cov[0, 3] = cov[3, 0] = C_r_alpha
+    cov[0, 4] = cov[4, 0] = C_r_beta
+
+    # sample from the multivariate normal
+    return np.random.multivariate_normal([r_mu, phi_mu, theta_mu, alpha_mu, beta_mu], cov)
+# Fardal model
 
 def tidalRadius(r, msat, profile):
     q_ref = [r, 0.0, 0.0]
