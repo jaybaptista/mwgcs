@@ -23,6 +23,8 @@ def EadieSampler(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
     
     return 10**system_mass
 
+def KGSampler(halo_mass):
+    return 3.2e6 * (halo_mass / 1e11)**(1.13)
 
 #################################################################
 # Samplers for the individual GC tags, should return a number of GC masses
@@ -36,7 +38,7 @@ def luminosity_to_mass(luminosity, ratio=3.0):
     return luminosity * ratio
 
 
-def DwarfGCMF(stellar_mass, mass_light_ratio=3.0, system_mass_sampler=EadieSampler):
+def DwarfGCMF(stellar_mass, mass_light_ratio=3.0, system_mass_sampler=EadieSampler, halo_mass=1e12):
 
     # NOTE—make sure that you have a keyword "system_mass_sampler"
     # which is a function that takes in stellar mass in Msun
@@ -45,8 +47,12 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=3.0, system_mass_sampler=EadieSampl
     # This article motivates the cutoff
     # https://iopscience.iop.org/article/10.3847/1538-4357/abd557
     gc_cutoff = 2e4
+    gcs_mass = 0.0
 
-    gcs_mass = system_mass_sampler(stellar_mass)
+    if system_mass_sampler == EadieSampler:
+        gcs_mass = system_mass_sampler(stellar_mass)
+    else:
+        gcs_mass = system_mass_sampler(halo_mass)
 
     if (gcs_mass == 0.0) or (gcs_mass < 2e4):
         return None

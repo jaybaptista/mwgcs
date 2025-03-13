@@ -42,7 +42,7 @@ class Interfacer(abc.ABC):
 
 import symlib
 from colossus.cosmology import cosmology
-from .sampler import DwarfGCMF, EadieSampler
+from .sampler import DwarfGCMF, EadieSampler, KGSampler
 
 
 class SymphonyInterfacer(Interfacer):
@@ -83,6 +83,8 @@ class SymphonyInterfacer(Interfacer):
         infall_snaps = self.hist["first_infall_snap"]
         infall_mass = self.um["m_star"][halo_id, infall_snaps]
 
+        infall_halo_mass = self.rs["m"][halo_id, infall_snaps]
+
         # lowkey a hack :/ #####################
         # gets the disruption snapshot
         ok_rs = np.array(self.rs["ok"], dtype=int)
@@ -92,6 +94,7 @@ class SymphonyInterfacer(Interfacer):
 
         self.infall_snaps = infall_snaps
         self.infall_mass = infall_mass
+        self.infall_halo_mass = infall_halo_mass
         self.disrupt_snaps = disrupt_snaps
 
         # Get the galaxy halo model for star tagging
@@ -111,7 +114,7 @@ class SymphonyInterfacer(Interfacer):
 
         ### interface with simulation outputs
         self.assign_particle_tags(
-            EadieSampler, DwarfGCMF, write_dir=os.path.join(self.halo_label, "./ParticleTags.npz")
+            KGSampler, DwarfGCMF, write_dir=os.path.join(self.halo_label, "./ParticleTags.npz")
         )
         self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))  # ps = phase space
         self.get_host_bfe("./BFECoefficients")
@@ -241,6 +244,7 @@ class SymphonyInterfacer(Interfacer):
         infall_masses = self.infall_mass[m]
         infall_snaps = self.infall_snaps[m]
         disrupt_snaps = self.disrupt_snaps[m]
+        infall_halo_mass = self.infall_halo_mass[m]
 
         _array_halo_indices = []
         _array_infall_snap = []
@@ -249,7 +253,7 @@ class SymphonyInterfacer(Interfacer):
 
         for i, infall_mass in enumerate(tqdm(infall_masses)):
             # obtain individual GC masses for each GC system
-            _gc_masses = gc_mass_sampler(infall_mass, system_mass_sampler=system_mass_sampler)
+            _gc_masses = gc_mass_sampler(infall_mass, system_mass_sampler=system_mass_sampler, halo_mass=infall_halo_mass)
 
             if _gc_masses is None:
                 continue
