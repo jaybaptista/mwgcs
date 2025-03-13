@@ -253,7 +253,7 @@ class SymphonyInterfacer(Interfacer):
 
         for i, infall_mass in enumerate(tqdm(infall_masses)):
             # obtain individual GC masses for each GC system
-            _gc_masses = gc_mass_sampler(infall_mass, system_mass_sampler=system_mass_sampler, halo_mass=infall_halo_mass)
+            _gc_masses = gc_mass_sampler(infall_mass, system_mass_sampler=system_mass_sampler, halo_mass=infall_halo_mass[i])
 
             if _gc_masses is None:
                 continue

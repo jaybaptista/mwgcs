@@ -53,9 +53,7 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=3.0, system_mass_sampler=EadieSampl
         gcs_mass = system_mass_sampler(stellar_mass)
     else:
         gcs_mass = system_mass_sampler(halo_mass)
-    
-    print(system_mass_sampler, halo_mass, gcs_mass)
-    
+        
     if (gcs_mass == 0.0) or (gcs_mass < 2e4):
         return None
     
