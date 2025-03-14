@@ -82,7 +82,6 @@ class SymphonyInterfacer(Interfacer):
         halo_id = np.arange(0, self.rs.shape[0], dtype=int)
         infall_snaps = self.hist["first_infall_snap"]
         infall_mass = self.um["m_star"][halo_id, infall_snaps]
-
         infall_halo_mass = self.rs["m"][halo_id, infall_snaps]
 
         # lowkey a hack :/ #####################
@@ -118,7 +117,7 @@ class SymphonyInterfacer(Interfacer):
         )
         self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))  # ps = phase space
         self.get_host_bfe("./BFECoefficients")
-        # self.get_subhalo_bfe("./BFECoefficients")
+        self.get_subhalo_bfe("./BFESubhalo")
         # self.make_acceleration_cube(write_dir=os.path.join(self.halo_label, "./acc_cube.npz"))
         # self.make_mass_cube(write_dir=os.path.join(self.halo_label, "./mass_cube.npz"))
         # self.make_potential_cube(write_dir=os.path.join(self.halo_label, "./pot_cube.npz"))
@@ -474,7 +473,7 @@ class SymphonyInterfacer(Interfacer):
                             type="multipole",
                             particles=(q[ok] - subhalo_pos, masses), # offset expansion by the subhalo position
                             symmetry="none",
-                            lmax=4,
+                            lmax=8,
                             rmin=0.001,
                             rmax=300.,
                             center=subhalo_pos,
