@@ -462,13 +462,11 @@ class SymphonyInterfacer(Interfacer):
                         
                         q = particles[halo_index]["x"]
                         ok = particles[halo_index]["ok"]
-
-                        if np.sum(ok) < 100:
+                        print("Particle count: ", sum(ok))
+                        if np.sum(ok) < 20:
                             continue
     
-                        subhalo_pos = self.rs[halo_index, snapshot]["x"]
-                        rvir = self.rs[halo_index, snapshot]["rvir"]
-                        
+                        subhalo_pos = self.rs[halo_index, snapshot]["x"]                        
                         masses = (np.ones(np.sum(ok)) * self.mp)
         
                         pot = agama.Potential(
