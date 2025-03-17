@@ -445,6 +445,8 @@ class SymphonyInterfacer(Interfacer):
             if not os.path.exists(snapshot_directory):
                 os.mkdir(snapshot_directory)
 
+            print("Trackable subhalos: ", np.where(self.rs[:, snapshot]["ok"])[0])
+
             particles = self.particle_class.read(snapshot, mode="smooth")
             
             for halo_index in range(self.rs.shape[0]):
