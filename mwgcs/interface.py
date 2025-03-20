@@ -416,7 +416,7 @@ class SymphonyInterfacer(Interfacer):
             if os.path.exists(coef_write_path):
                 print(f"Found coefficient file for snapshot {snapshot}.")
             else:
-                particles = self.particle_class.read(snapshot, mode="all")
+                particles = self.particle_class.read(snapshot, mode="smooth")
                 q = particles[halo_index]["x"]
                 ok = particles[halo_index]["ok"]
                 
@@ -447,7 +447,7 @@ class SymphonyInterfacer(Interfacer):
 
             print("Trackable subhalos: ", np.where(self.rs[:, snapshot]["ok"])[0])
 
-            particles = self.particle_class.read(snapshot, mode="smooth")
+            particles = self.particle_class.read(snapshot, mode="all")
             
             for halo_index in range(self.rs.shape[0]):
                 is_tracked = self.rs[halo_index, snapshot]["ok"]
