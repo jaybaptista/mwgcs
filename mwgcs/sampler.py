@@ -2,7 +2,7 @@ import abc
 import numpy as np
 from scipy.integrate import quad
 from scipy.interpolate import interp1d
-from scipy.stats import norm
+from scipy.stats import norm, uniform
 
 from gala.dynamics import PhaseSpacePosition  # Add this import if using gala
 from astropy.coordinates import CylindricalDifferential, CylindricalRepresentation
@@ -12,73 +12,73 @@ import astropy.units as u
 #################################################################
 # Samplers for the GC System mass, should return a single value for mass
 
-
 def EadieSampler(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
+
+    # GC predictor (put this back in later)
+    # p = (1 + np.exp(-1 * (b0 + b1 * np.log10(stellar_mass))))**(-1)
+
+    # if uniform.rvs() > p: # i.e., failure to draw
+    #     return 0.
+    
     system_mass = (
         1
         / (1 + np.exp(-(b0 + (b1 * np.log10(stellar_mass)))))
         * (g0 + (g1 * np.log10(stellar_mass)))
     )
-    return system_mass
+    
+    return 10**system_mass
 
+def KGSampler(halo_mass):
+    return 3.2e6 * (halo_mass / 1e11)**(1.13)
 
 #################################################################
 # Samplers for the individual GC tags, should return a number of GC masses
-def DwarfGCMF(stellar_mass, mass_light_ratio=2.0, system_mass_sampler=EadieSampler):
+
+def magnitude_to_luminosity(magnitude, zero_point=5.12):
+    """Convert magnitude to luminosity using the zero point."""
+    return 10 ** ((zero_point - magnitude) / 2.5)
+
+def luminosity_to_mass(luminosity, ratio=3.0):
+    """Convert luminosity to mass using the mass-to-light ratio."""
+    return luminosity * ratio
+
+
+def DwarfGCMF(stellar_mass, mass_light_ratio=3.0, system_mass_sampler=EadieSampler, halo_mass=1e12):
 
     # NOTE—make sure that you have a keyword "system_mass_sampler"
     # which is a function that takes in stellar mass in Msun
     # and outputs the bulk GC system mass.
 
-    gc_peak_mass = 10 ** (system_mass_sampler(stellar_mass))
+    # This article motivates the cutoff
+    # https://iopscience.iop.org/article/10.3847/1538-4357/abd557
+    gc_cutoff = 2e4
+    gcs_mass = 0.0
 
-    min_gband = -5.5
-    max_gband = -9.5
+    if system_mass_sampler == EadieSampler:
+        gcs_mass = system_mass_sampler(stellar_mass)
+    else:
+        gcs_mass = system_mass_sampler(halo_mass)
+        
+    if (gcs_mass == 0.0) or (gcs_mass < 2e4):
+        return None
+    
+    gc_mass = []
+    while np.sum(gc_mass) <= gcs_mass:
+        sampled_magnitude = np.random.normal(-7.02, 0.57)
+        sampled_luminosity = magnitude_to_luminosity(sampled_magnitude)
+        sampled_mass = luminosity_to_mass(sampled_luminosity, mass_light_ratio)
+        
+        if sampled_mass > gcs_mass:
+            continue
+        
+        gc_mass.append(sampled_mass)
+    
+    # ratio = (np.sum(accumulated_mass) - gc_peak_mass) / last_sampled_mass
 
-    # min_mass = mass_light_ratio * 10**(0.4*(5.03 - max_gband))
-    # max_mass = mass_light_ratio * 10**(0.4*(5.03 - min_gband))
+    # if (np.random.uniform(0, 1) > ratio) & (len(accumulated_mass) > 1):
+    #     accumulated_mass = accumulated_mass[:-1]
 
-    # min_mass = mass_light_ratio * 10**(0.4*(5.03 - max_gband))
-    # max_mass = mass_light_ratio * 10**(0.4*(5.03 - min_gband))
-
-    min_mass = 1e4
-    max_mass = 1e6
-
-    gc_mass_range = np.linspace(min_mass, max_mass, 100)
-
-    def _gclf(mass, M_mean=-7.0, M_sigma=0.7):
-        # get magnitude from mass
-        mag = 5.03 - 2.5 * np.log10(mass)
-        gclf_value = norm.pdf(mag, loc=M_mean, scale=M_sigma)
-        return gclf_value
-
-    def r(M):
-        _a = quad(_gclf, min_mass, M)[0]
-        _b = quad(_gclf, min_mass, max_mass)[0]
-        return _a / _b
-
-    cdf = np.array([r(m_i) for m_i in gc_mass_range])
-    inv_cdf = interp1d(cdf, gc_mass_range, kind="linear")
-
-    accumulated_mass = [inv_cdf(np.random.uniform(0, 1))]
-    last_sampled_mass = accumulated_mass[0]
-
-    while np.sum(accumulated_mass) < gc_peak_mass:
-        # sample a mass
-        sampled_mass = inv_cdf(np.random.uniform(0, 1))
-
-        # add it to the running total
-        accumulated_mass.append(sampled_mass)
-
-        # keep track of the last sampled mass
-        last_sampled_mass = sampled_mass
-
-    ratio = (np.sum(accumulated_mass) - gc_peak_mass) / last_sampled_mass
-
-    if (np.random.uniform(0, 1) > ratio) & (len(accumulated_mass) > 1):
-        accumulated_mass = accumulated_mass[:-1]
-
-    return accumulated_mass
+    return np.array(gc_mass)
 
 
 #################################################################

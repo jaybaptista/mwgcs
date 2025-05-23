@@ -7,7 +7,6 @@ from scipy.interpolate import UnivariateSpline, interp1d, LinearNDInterpolator
 import symlib
 from colossus.cosmology import cosmology
 
-from .util import LinearNDInterpolatorExt
 
 from .fit import NFW, Einasto, Plummer, get_tidal_strength
 

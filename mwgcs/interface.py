@@ -4,6 +4,9 @@ import os
 import asdf
 from tqdm import tqdm
 
+import agama
+agama.setUnits(length=1, velocity=1, mass=1)
+
 from .fit import SymphonyHaloProfile
 
 from scipy.stats import norm
@@ -39,12 +42,18 @@ class Interfacer(abc.ABC):
 
 import symlib
 from colossus.cosmology import cosmology
-from .sampler import DwarfGCMF, EadieSampler
+from .sampler import DwarfGCMF, EadieSampler, KGSampler
 
 
 class SymphonyInterfacer(Interfacer):
     def __init__(self, sim_dir, gcmf=DwarfGCMF, **kwargs):
         self.sim_dir = sim_dir
+
+        self.halo_label = os.path.split(sim_dir)[-1]
+
+        if not os.path.exists(self.halo_label):
+            print("Creating halo directory...")
+            os.mkdir(self.halo_label)
 
         snapshots = np.arange(0, 236, dtype=int)
         scale_factors = np.array(symlib.scale_factors(sim_dir))
@@ -73,6 +82,7 @@ class SymphonyInterfacer(Interfacer):
         halo_id = np.arange(0, self.rs.shape[0], dtype=int)
         infall_snaps = self.hist["first_infall_snap"]
         infall_mass = self.um["m_star"][halo_id, infall_snaps]
+        infall_halo_mass = self.rs["m"][halo_id, infall_snaps]
 
         # lowkey a hack :/ #####################
         # gets the disruption snapshot
@@ -83,6 +93,7 @@ class SymphonyInterfacer(Interfacer):
 
         self.infall_snaps = infall_snaps
         self.infall_mass = infall_mass
+        self.infall_halo_mass = infall_halo_mass
         self.disrupt_snaps = disrupt_snaps
 
         # Get the galaxy halo model for star tagging
@@ -100,12 +111,19 @@ class SymphonyInterfacer(Interfacer):
             ),
         )
 
+        ### interface with simulation outputs
         self.assign_particle_tags(
-            EadieSampler, DwarfGCMF, write_dir="./tagged_particles.npz"
+            KGSampler, DwarfGCMF, write_dir=os.path.join(self.halo_label, "./ParticleTags.npz")
         )
-        self.track_particles(write_dir="./ps_cube.npz")  # ps = phase space
-        self.make_acceleration_cube(write_dir="./acc_cube.npz")
-        self.make_potential_cube(write_dir="./pot_cube.npz")
+        self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))  # ps = phase space
+        self.get_host_bfe("./BFECoefficients")
+        self.get_subhalo_bfe("./BFESubhalo")
+        # self.make_acceleration_cube(write_dir=os.path.join(self.halo_label, "./acc_cube.npz"))
+        # self.make_mass_cube(write_dir=os.path.join(self.halo_label, "./mass_cube.npz"))
+        # self.make_potential_cube(write_dir=os.path.join(self.halo_label, "./pot_cube.npz"))
+
+        # simulation metadata
+        self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
 
         #################################################################
 
@@ -184,7 +202,7 @@ class SymphonyInterfacer(Interfacer):
         l = a * l_0
 
         # Return the convergence radius
-        return (5.5e-2 * l, 3 * self.params["eps"] / self.params["h100"] * a)
+        return np.max((5.5e-2 * l, 3 * self.params["eps"] / self.params["h100"] * a))
 
     def set_subhalo_infall(
         self, halo_id, snapshots, halo_mass, end_snapshots, **kwargs
@@ -202,6 +220,16 @@ class SymphonyInterfacer(Interfacer):
         else:
             super().write_halo_catalog(write_dir)
 
+    def getConvergenceRadii(self, write_dir):
+        if os.path.exists(write_dir):
+            print("Found archived convergence radii catalog...")
+        else:
+            data = np.zeros(len(self.snapshots))
+            for k in self.snapshots:
+                data[k] = self.getConvergenceRadius(k)
+            
+            np.savez_compressed(write_dir, data)
+
     def initialize_gc_array(self, system_mass_sampler, gc_mass_sampler):
         print("Initializing GC tag data structure...")
 
@@ -215,6 +243,7 @@ class SymphonyInterfacer(Interfacer):
         infall_masses = self.infall_mass[m]
         infall_snaps = self.infall_snaps[m]
         disrupt_snaps = self.disrupt_snaps[m]
+        infall_halo_mass = self.infall_halo_mass[m]
 
         _array_halo_indices = []
         _array_infall_snap = []
@@ -223,15 +252,18 @@ class SymphonyInterfacer(Interfacer):
 
         for i, infall_mass in enumerate(tqdm(infall_masses)):
             # obtain individual GC masses for each GC system
-            gc_masses = np.array(
-                gc_mass_sampler(infall_mass, system_mass_sampler=system_mass_sampler)
-            )
+            _gc_masses = gc_mass_sampler(infall_mass, system_mass_sampler=system_mass_sampler, halo_mass=infall_halo_mass[i])
 
-            _array_halo_indices.append(np.repeat(halo_indices[i], len(gc_masses)))
-            _array_infall_snap.append(np.repeat(infall_snaps[i], len(gc_masses)))
-            _array_disrupt_snap.append(np.repeat(disrupt_snaps[i], len(gc_masses)))
-            print(len(gc_masses))
-            _array_gc_masses.append(gc_masses)
+            if _gc_masses is None:
+                continue
+            else:
+                gc_masses = np.array(_gc_masses)
+
+                _array_halo_indices.append(np.repeat(halo_indices[i], len(gc_masses)))
+                _array_infall_snap.append(np.repeat(infall_snaps[i], len(gc_masses)))
+                _array_disrupt_snap.append(np.repeat(disrupt_snaps[i], len(gc_masses)))
+                print(len(gc_masses))
+                _array_gc_masses.append(gc_masses)
 
         array_halo_indices = np.hstack(_array_halo_indices)  # int
         array_infall_snap = np.hstack(_array_infall_snap)  # int
@@ -261,6 +293,9 @@ class SymphonyInterfacer(Interfacer):
     def assign_particle_tags(
         self, system_mass_sampler, gc_mass_sampler, write_dir, tmp_dir="tmp.npz"
     ):
+
+        tmp_save_dir = os.path.join(self.halo_label, tmp_dir)
+        
         if os.path.exists(write_dir):
             print("Found particle tag `.npz`...")
             self.particle_tags = np.load(write_dir)["arr_0"]
@@ -270,11 +305,11 @@ class SymphonyInterfacer(Interfacer):
             arr = None
 
             # initialize the GC array
-            if os.path.exists(tmp_dir):
-                arr = np.load(tmp_dir)["arr_0"]
+            if os.path.exists(tmp_save_dir):
+                arr = np.load(tmp_save_dir)["arr_0"]
             else:
                 arr = self.initialize_gc_array(system_mass_sampler, gc_mass_sampler)
-                np.savez_compressed(tmp_dir, arr)
+                np.savez_compressed(tmp_save_dir, arr)
 
             infall_snaps = self.infall_snaps[self.infall_snaps != -1]
 
@@ -321,9 +356,10 @@ class SymphonyInterfacer(Interfacer):
 
                     # NOTE: refactor particle_id to ``nimbus_index``
                     particle_tag_arr["nimbus_index"][k] = particle_tag_index
-
-            self.particle_tags = np.load(write_dir)["arr_0"]
+            
             np.savez_compressed(write_dir, particle_tag_arr)
+            self.particle_tags = np.load(write_dir)["arr_0"]
+            
 
     def track_particles(self, write_dir):
         if os.path.exists(write_dir):
@@ -366,7 +402,86 @@ class SymphonyInterfacer(Interfacer):
 
             np.savez_compressed(write_dir, tracking_cube)
 
+    ###
 
+    def get_host_bfe(self, write_dir):
+        halo_index = 0 
+        if not os.path.exists(write_dir):
+            print("Creating halo directory...")
+            os.mkdir(write_dir)
+        for snapshot in tqdm(range(self.rs.shape[1])):
+
+            coef_write_path = os.path.join(write_dir, f"coef_snap_{snapshot}.coef_mul")
+
+            if os.path.exists(coef_write_path):
+                print(f"Found coefficient file for snapshot {snapshot}.")
+            else:
+                particles = self.particle_class.read(snapshot, mode="smooth")
+                q = particles[halo_index]["x"]
+                ok = particles[halo_index]["ok"]
+                
+                masses = (np.ones(np.sum(ok)) * self.mp)
+
+                pot = agama.Potential(
+                    type="multipole",
+                    particles=(q[ok], masses),
+                    symmetry="none",
+                    lmax=8,
+                    rmin=0.01,
+                    rmax=300
+                )
+                
+                pot.export(coef_write_path)
+
+    ### 
+    
+    def get_subhalo_bfe(self, write_dir):
+        if not os.path.exists(write_dir):
+            print("Creating halo directory...")
+            os.mkdir(write_dir)
+        for snapshot in tqdm(range(self.rs.shape[1])):
+            snapshot_directory = os.path.join(write_dir, f"bfe_{snapshot}")
+                
+            if not os.path.exists(snapshot_directory):
+                os.mkdir(snapshot_directory)
+
+            print("Trackable subhalos: ", np.where(self.rs[:, snapshot]["ok"])[0])
+
+            particles = self.particle_class.read(snapshot, mode="all")
+            
+            for halo_index in range(self.rs.shape[0]):
+                is_tracked = self.rs[halo_index, snapshot]["ok"]
+
+                if is_tracked:
+                
+                    coef_write_path = os.path.join(snapshot_directory, f"coef_subhalo_{halo_index}.coef_mul")
+        
+                    if os.path.exists(coef_write_path):
+                        print(f"Found halo {halo_index} coefficient file for snapshot {snapshot}.")
+                    else:
+                        
+                        q = particles[halo_index]["x"]
+                        ok = particles[halo_index]["ok"]
+                        print("Particle count: ", sum(ok))
+                        if np.sum(ok) < 20:
+                            continue
+    
+                        subhalo_pos = self.rs[halo_index, snapshot]["x"]                        
+                        masses = (np.ones(np.sum(ok)) * self.mp)
+        
+                        pot = agama.Potential(
+                            type="multipole",
+                            particles=(q[ok] - subhalo_pos, masses), # offset expansion by the subhalo position
+                            symmetry="none",
+                            lmax=8,
+                            rmin=0.001,
+                            rmax=300.,
+                            center=subhalo_pos,
+                        )
+                        
+                        pot.export(coef_write_path)
+    
+    ### possibly deprecate these ###
     def make_potential_cube(self, write_dir):
         if os.path.exists(write_dir):
             print("Found archived potential cube...")
@@ -409,7 +524,7 @@ class SymphonyInterfacer(Interfacer):
                                 q, subhalo_pos, self.mp, rvir, a=self.a[snapshot]
                             )
 
-                            l_conv = np.max(self.getConvergenceRadius(snapshot))
+                            l_conv = self.getConvergenceRadius(snapshot)
                             fit_output = profile.fit(l_conv)
 
                             params = [
@@ -507,7 +622,69 @@ class SymphonyInterfacer(Interfacer):
             # save cube as compressed numpy array
             np.savez_compressed(write_dir, cube)
 
-
+    def make_mass_cube(self, write_dir):
+    
+            if os.path.exists(write_dir):
+                print("Found archived enclosed mass cube...")
+                self.acc_cube = np.load(write_dir)["arr_0"]
+            else:
+                radial_bin_count = 100
+                cube = (
+                    np.zeros((self.rs.shape[0], self.rs.shape[1], radial_bin_count))
+                    * np.nan
+                )
+    
+                # loop over each snapshot
+                for snapshot in tqdm(range(self.rs.shape[1])):
+                    particles = self.particle_class.read(snapshot, mode="all")
+    
+                    # loop over each halo
+                    for halo_index in range(self.rs.shape[0]):
+                        # check if that halo is trackable
+                        # i.e., is it flagged 'ok' by rockstar?
+                        is_tracked = self.rs[halo_index, snapshot]["ok"]
+    
+                        if is_tracked:
+                            # Bulk subhalo properties
+                            pos = self.rs[halo_index, snapshot]["x"]
+                            vel = self.rs[halo_index, snapshot]["v"]
+                            mass = self.rs[halo_index, snapshot]["m"]
+    
+                            rvir = self.rs[halo_index, snapshot]["rvir"]
+    
+                            # select for bound particles only
+                            q = particles[halo_index]["x"]
+                            p = particles[halo_index]["v"]
+    
+                            dq = q - pos
+                            dp = p - vel
+    
+                            r = np.sqrt(np.sum(dq**2, axis=1))
+                            order = np.argsort(r)
+    
+                            ke = np.sum(dp**2, axis=1) / 2
+                            ok = np.ones(len(ke), dtype=bool)
+    
+                            for _ in range(3):
+                                _, vmax, pe, _ = symlib.profile_info(self.params, dq, ok=ok)
+                                E = ke + pe * vmax**2
+                                ok = E < 0
+    
+                            print(
+                                "halo loaded with ", len(q), "particles and r_vir =", rvir
+                            )
+    
+                            profile = SymphonyHaloProfile(
+                                q[ok], pos, self.mp, rvir, a=self.a[snapshot]
+                            )
+    
+                            masses = profile.getMassProfile(
+                                bins=radial_bin_count
+                            )
+    
+                            cube[halo_index, snapshot, :] = masses
+                # save cube as compressed numpy array
+                np.savez_compressed(write_dir, cube)
 ###########################################################
 # Utility functions that I probably should move... ########
 def rh_rvir_relation(rvir, addScatter=True):
@@ -522,6 +699,23 @@ def rh_rvir_relation(rvir, addScatter=True):
     log_rh = slope * log_rvir + rand + np.log10(normalization)
     return 10**log_rh
 
+def get_binding_energy(q, p, subhalo_pos, subhalo_vel, params):
+    dq = q - subhalo_pos
+    dp = p - subhalo_vel
+
+    E = None
+
+    r = np.sqrt(np.sum(dq**2, axis=1))
+    ke = np.sum(dp**2, axis=1) / 2
+    ok = np.ones(len(ke), dtype=bool)
+
+    for i in range(3):
+        _, vmax, pe, _ = symlib.profile_info(params, dq, ok=ok)
+        E = ke + pe * vmax**2
+        ok = E < 0
+
+    return E
+
 
 def get_bounded_particles(q, p, subhalo_pos, subhalo_vel, params):
     dq = q - subhalo_pos
@@ -531,9 +725,12 @@ def get_bounded_particles(q, p, subhalo_pos, subhalo_vel, params):
     ke = np.sum(dp**2, axis=1) / 2
     ok = np.ones(len(ke), dtype=bool)
 
-    for _ in range(3):
+    for i in range(3):
         _, vmax, pe, _ = symlib.profile_info(params, dq, ok=ok)
         E = ke + pe * vmax**2
         ok = E < 0
+
+        if (i == 3) and sort:
+            ok = np.argsort(E[ok])
 
     return q[ok], p[ok]
