@@ -4,6 +4,11 @@ from scipy.integrate import quad
 from scipy.interpolate import interp1d
 from scipy.stats import norm
 
+from gala.dynamics import PhaseSpacePosition  # Add this import if using gala
+from astropy.coordinates import CylindricalDifferential, CylindricalRepresentation
+from astropy.units import Quantity
+import astropy.units as u
+
 #################################################################
 # Samplers for the GC System mass, should return a single value for mass
 
@@ -134,7 +139,7 @@ def ga(r, profile):
     # get hessian at [r, 0, 0]
     q_ref = [r, 0.0, 0.0]
     
-    d2phi_dr2 = profile.hessian(q)[0, 0]
+    d2phi_dr2 = profile.hessian(q_ref)[0, 0]
     
     _G = 4.498502151469554e-12  # units of kpc3 / (Msun Myr2)
     
@@ -229,6 +234,8 @@ def w_ejecta(w_sat, m_sat, pot, r_apo, r_peri):
     _v_cyl = CylindricalDifferential(
         vr_ej.reshape(2, 1).to(u.km / u.s), vt_ej.to(u.rad / u.s), vz_ej.to(u.km / u.s)
     )
+
+    
 
     cyl_ej = PhaseSpacePosition(_p_cyl, _v_cyl)
     w_ej = cyl_ej.represent_as("cartesian")
