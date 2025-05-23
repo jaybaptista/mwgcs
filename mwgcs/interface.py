@@ -116,11 +116,11 @@ class SymphonyInterfacer(Interfacer):
             KGSampler, DwarfGCMF, write_dir=os.path.join(self.halo_label, "./ParticleTags.npz")
         )
         self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))  # ps = phase space
-        self.get_host_bfe("./BFECoefficients")
-        self.get_subhalo_bfe("./BFESubhalo")
+        # self.get_host_bfe("./BFECoefficients")
+        # self.get_subhalo_bfe("./BFESubhalo")
         # self.make_acceleration_cube(write_dir=os.path.join(self.halo_label, "./acc_cube.npz"))
         # self.make_mass_cube(write_dir=os.path.join(self.halo_label, "./mass_cube.npz"))
-        # self.make_potential_cube(write_dir=os.path.join(self.halo_label, "./pot_cube.npz"))
+        self.make_potential_cube(write_dir=os.path.join(self.halo_label, "./pot_cube.npz"))
 
         # simulation metadata
         self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
