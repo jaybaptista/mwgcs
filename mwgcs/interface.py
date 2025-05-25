@@ -96,6 +96,12 @@ class SymphonyInterfacer(Interfacer):
         self.infall_halo_mass = infall_halo_mass
         self.disrupt_snaps = disrupt_snaps
 
+        # obtain the pre-infall host ids
+        self.pi_hid = symlib.pre_infall_host(self.hist)
+
+        # obtain the GC spawnable hosts
+        # self.pi_hid == -1 
+
         # Get the galaxy halo model for star tagging
         self.gal_halo = symlib.GalaxyHaloModel(
             symlib.StellarMassModel(
@@ -112,18 +118,22 @@ class SymphonyInterfacer(Interfacer):
         )
 
         ### interface with simulation outputs
+        
         self.assign_particle_tags(
             KGSampler, DwarfGCMF, write_dir=os.path.join(self.halo_label, "./ParticleTags.npz")
         )
-        self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))  # ps = phase space
+        
+        # self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))  # ps = phase space
+        
         # self.get_host_bfe("./BFECoefficients")
         # self.get_subhalo_bfe("./BFESubhalo")
         # self.make_acceleration_cube(write_dir=os.path.join(self.halo_label, "./acc_cube.npz"))
         # self.make_mass_cube(write_dir=os.path.join(self.halo_label, "./mass_cube.npz"))
+        
         self.make_potential_cube(write_dir=os.path.join(self.halo_label, "./pot_cube.npz"))
 
         # simulation metadata
-        self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
+        # self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
 
         #################################################################
 
@@ -244,11 +254,13 @@ class SymphonyInterfacer(Interfacer):
         infall_snaps = self.infall_snaps[m]
         disrupt_snaps = self.disrupt_snaps[m]
         infall_halo_mass = self.infall_halo_mass[m]
+        pi_hid = self.pi_hid[m]
 
         _array_halo_indices = []
         _array_infall_snap = []
         _array_disrupt_snap = []
         _array_gc_masses = []
+        _array_pi_hid = []
 
         for i, infall_mass in enumerate(tqdm(infall_masses)):
             # obtain individual GC masses for each GC system
@@ -264,11 +276,13 @@ class SymphonyInterfacer(Interfacer):
                 _array_disrupt_snap.append(np.repeat(disrupt_snaps[i], len(gc_masses)))
                 print(len(gc_masses))
                 _array_gc_masses.append(gc_masses)
+                _array_pi_hid.append(np.repeat(pi_hid[i], len(gc_masses)))
 
         array_halo_indices = np.hstack(_array_halo_indices)  # int
         array_infall_snap = np.hstack(_array_infall_snap)  # int
         array_disrupt_snap = np.hstack(_array_disrupt_snap)  # int
         array_gc_masses = np.hstack(_array_gc_masses)  # float64
+        array_pi_hid = np.hstack(_array_pi_hid)  # int
 
         # create structured array
 
@@ -278,6 +292,7 @@ class SymphonyInterfacer(Interfacer):
                 ("infall_snap", int),
                 ("disrupt_snap", int),
                 ("gc_mass", float),
+                ("pi_hid", int)
             ]
         )
 
@@ -287,6 +302,7 @@ class SymphonyInterfacer(Interfacer):
         _array["infall_snap"] = array_infall_snap
         _array["disrupt_snap"] = array_disrupt_snap
         _array["gc_mass"] = array_gc_masses
+        _array["pi_hid"] = array_pi_hid
 
         return _array
 
@@ -335,8 +351,16 @@ class SymphonyInterfacer(Interfacer):
             for snap in tqdm(infall_snaps):
                 # particles = self.particle_class.read(snap, mode="stars")
 
-                # indices to assign tags to
-                indices = np.where(particle_tag_arr["infall_snap"] == snap)[0]
+                # define the indices to assign tags to
+                
+                # only assign tags to halos which are currently infalling at this snapshot
+                infall_snap_condition = particle_tag_arr["infall_snap"] == snap
+                
+                # only assign tags to halos that are infalling onto the host halo
+                infall_halo_condition = arr["pi_hid"] == -1
+                
+                indices = np.where(infall_snap_condition & infall_halo_condition)[0]
+
                 halo_ids = particle_tag_arr["halo_index"][indices]
 
                 for k, hid in zip(indices, halo_ids):
