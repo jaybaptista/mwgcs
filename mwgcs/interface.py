@@ -690,6 +690,9 @@ def is_bound(q, p, subhalo_pos, subhalo_vel, params):
         E = ke + pe * vmax**2
         ok = E < 0
 
+        if ok.size == 0:
+            return ok
+
     return ok
 
 def get_bounded_particles(q, p, subhalo_pos, subhalo_vel, params):
