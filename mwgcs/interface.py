@@ -596,12 +596,15 @@ class SymphonyInterfacer(Interfacer):
 
                         cube[h, s, 4] = logrh
                     
-                    elif disrupt or not particle_cut:
+                    elif infall and (disrupt or not particle_cut):
                         # If fully disrupted or insufficient particle count,
                         # dump all particles into the central.
                         print(f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo...")
                         x_stack.append(particles[h]['x'])
                         v_stack.append(particles[h]['v'])
+                    else:
+                        # Do nothing.
+                        continue 
 
                 # Perform fit on central halo
                 particles = self.part.read(s, mode='smooth')
