@@ -599,6 +599,7 @@ class SymphonyInterfacer(Interfacer):
                     elif disrupt or not particle_cut:
                         # If fully disrupted or insufficient particle count,
                         # dump all particles into the central.
+                        print(f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo...")
                         x_stack.append(particles[h]['x'])
                         v_stack.append(particles[h]['v'])
 
