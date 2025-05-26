@@ -533,7 +533,7 @@ class SymphonyInterfacer(Interfacer):
                 for h in range(1, self.rs.shape[0]):
 
                     # Check if subhalo has not disrupted
-                    disrupt = self.rs[h, s]["ok"]
+                    intact = self.rs[h, s]["ok"]
 
                     # Check if subhalo infalls onto the main halo
                     infall = True if (s >= self.hist["first_infall_snap"][h] and (h in accreting_halos)) else False
@@ -549,7 +549,7 @@ class SymphonyInterfacer(Interfacer):
                     # Arbitrary particle cut to ensure a good fit
                     particle_cut = np.sum(ok) > 40
 
-                    if infall and not disrupt and particle_cut:
+                    if infall and intact and particle_cut:
 
                         # Load unbound particles into the central halo
                         x_stack.append(particles[h]['x'][~ok])
@@ -596,7 +596,7 @@ class SymphonyInterfacer(Interfacer):
 
                         cube[h, s, 4] = logrh
                     
-                    elif infall and (disrupt or not particle_cut):
+                    elif infall and (not intact or not particle_cut):
                         # If fully disrupted or insufficient particle count,
                         # dump all particles into the central.
                         print(f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo...")
@@ -604,7 +604,7 @@ class SymphonyInterfacer(Interfacer):
                         v_stack.append(particles[h]['v'])
                     else:
                         # Do nothing.
-                        print(f"[{h}, {s}]: Halos that have no infallen are not tracked.")
+                        print(f"[{h}, {s}]: Halos that have not infallen are not tracked.")
                         continue 
 
                 # Perform fit on central halo
