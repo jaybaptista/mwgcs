@@ -541,7 +541,7 @@ class SymphonyInterfacer(Interfacer):
                     ok = is_bound(
                             particles[h]["x"],
                             particles[h]["v"],
-                            self.rs[s, h]['x'],
+                            self.rs[h, s]['x'],
                             self.rs[h, s]["v"],
                             self.params
                         )
