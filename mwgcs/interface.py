@@ -604,6 +604,7 @@ class SymphonyInterfacer(Interfacer):
                         v_stack.append(particles[h]['v'])
                     else:
                         # Do nothing.
+                        print(f"[{h}, {s}]: Halos that have no infallen are not tracked.")
                         continue 
 
                 # Perform fit on central halo
