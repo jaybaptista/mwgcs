@@ -694,12 +694,11 @@ def is_bound(q, p, subhalo_pos, subhalo_vel, params):
         return np.array([], dtype=bool)
 
     for _ in range(3):
+        if (np.sum(ok) == 0) or (len(dq) == 0):
+            return ok
         _, vmax, pe, _ = symlib.profile_info(params, dq, ok=ok)
         E = ke + pe * vmax**2
         ok = E < 0
-
-        if np.sum(ok) == 0:
-            return ok
 
     return ok
 
