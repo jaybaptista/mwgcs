@@ -121,7 +121,7 @@ class SphericalHaloProfile(abc.ABC):
 
 
 class SymphonyHaloProfile(SphericalHaloProfile):
-
+    # https://ui.adsabs.harvard.edu/abs/2014MNRAS.444..222G/abstract
     def einasto_log_density(self, r, alpha, Rs, logScaleDensity):
         A = 1.715 * (alpha ** (-0.00183)) * (alpha + 0.0817) ** (-0.179488)
         Rmax = A * Rs

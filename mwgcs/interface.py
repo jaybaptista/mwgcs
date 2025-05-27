@@ -528,15 +528,18 @@ class SymphonyInterfacer(Interfacer):
                 x_stack = []
                 v_stack = []
 
-                particles = self.part.read(s, mode='current')
+                # load everything in smooth
+                particles = self.part.read(s, mode='smooth')
  
                 for h in range(1, self.rs.shape[0]):
 
                     # Check if subhalo has not disrupted
                     intact = self.rs[h, s]["ok"]
 
+                    # `merger_snap`
+
                     # Check if subhalo infalls onto the main halo
-                    infall = True if (s >= self.hist["first_infall_snap"][h] and (h in accreting_halos)) else False
+                    infall = True if (s >= self.hist["merger_snap"][h]) else False
 
                     ok = is_bound(
                             particles[h]["x"],
