@@ -687,11 +687,11 @@ def is_bound(q, p, subhalo_pos, subhalo_vel, params):
     dq = q - subhalo_pos
     dp = p - subhalo_vel
 
-    if dq.shape[0] == 0:
-        return np.array([], dtype=bool)
-
     ke = np.sum(dp**2, axis=1) / 2
     ok = np.ones(len(ke), dtype=bool)
+
+    if ok.size == 0:
+        return np.array([], dtype=bool)
 
     for _ in range(3):
         _, vmax, pe, _ = symlib.profile_info(params, dq, ok=ok)
