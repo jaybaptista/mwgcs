@@ -690,7 +690,7 @@ def is_bound(q, p, subhalo_pos, subhalo_vel, params):
     ke = np.sum(dp**2, axis=1) / 2
     ok = np.ones(len(ke), dtype=bool)
 
-    if ok.size == 0:
+    if (dq.size == 0) or (len(ke) == 0):
         return np.array([], dtype=bool)
 
     for _ in range(3):
@@ -698,7 +698,7 @@ def is_bound(q, p, subhalo_pos, subhalo_vel, params):
         E = ke + pe * vmax**2
         ok = E < 0
 
-        if ok.size == 0:
+        if np.sum(ok) == 0:
             return ok
 
     return ok
