@@ -541,6 +541,9 @@ class SymphonyInterfacer(Interfacer):
                     # Check if subhalo infalls onto the main halo
                     infall = True if (s >= self.hist["merger_snap"][h]) else False
 
+                    if not infall:
+                        continue
+
                     ok = is_bound(
                             particles[h]["x"],
                             particles[h]["v"],
@@ -552,7 +555,7 @@ class SymphonyInterfacer(Interfacer):
                     # Arbitrary particle cut to ensure a good fit
                     particle_cut = np.sum(ok) > 40
 
-                    if infall and intact and particle_cut:
+                    if intact and particle_cut:
 
                         # Load unbound particles into the central halo
                         x_stack.append(particles[h]['x'][~ok])
@@ -599,7 +602,7 @@ class SymphonyInterfacer(Interfacer):
 
                         cube[h, s, 4] = logrh
                     
-                    elif infall and (not intact or not particle_cut):
+                    elif (not intact or not particle_cut):
                         # If fully disrupted or insufficient particle count,
                         # dump all particles into the central.
                         print(f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo...")
@@ -694,7 +697,7 @@ def is_bound(q, p, subhalo_pos, subhalo_vel, params):
         return np.array([], dtype=bool)
 
     for _ in range(3):
-        print(np.sum(ok), len(dq))
+
         if (np.sum(ok) == 0) or (len(dq) == 0):
             return ok
         _, vmax, pe, _ = symlib.profile_info(params, dq, ok=ok)
