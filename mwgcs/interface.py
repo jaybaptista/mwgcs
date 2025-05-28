@@ -553,9 +553,9 @@ class SymphonyInterfacer(Interfacer):
                         )
                     
                     # Arbitrary particle cut to ensure a good fit
-                    particle_cut = np.sum(ok) > 40
+                    # particle_cut = np.sum(ok) > 40
 
-                    if intact and particle_cut:
+                    if intact:
 
                         # Load unbound particles into the central halo
                         x_stack.append(particles[h]['x'][~ok])
@@ -602,7 +602,7 @@ class SymphonyInterfacer(Interfacer):
 
                         cube[h, s, 4] = logrh
                     
-                    elif (not intact or not particle_cut):
+                    elif (not intact):
                         # If fully disrupted or insufficient particle count,
                         # dump all particles into the central.
                         print(f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo...")
