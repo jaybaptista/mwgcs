@@ -566,8 +566,8 @@ class SymphonyInterfacer(Interfacer):
 
                         pot = agama.Potential(
                             type="multipole",
-                            particles=(q[ok] - h_x, masses), # offset expansion by the subhalo position
-                            symmetry="none",
+                            particles=(q - h_x, masses), # offset expansion by the subhalo position
+                            symmetry="spherical",
                             lmax=1,
                             rmin=0.001,
                             rmax=250.,
