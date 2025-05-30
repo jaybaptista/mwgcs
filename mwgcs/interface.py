@@ -128,6 +128,7 @@ class SymphonyInterfacer(Interfacer):
         # self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))
         
         self.approximate_sph_potential(write_dir=os.path.join(self.halo_label, "./pot_cube.npz"))
+        self.approximate_sph_bfe(write_dir="monopole")
 
         # self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
 
@@ -501,6 +502,116 @@ class SymphonyInterfacer(Interfacer):
                         
                         pot.export(coef_write_path)
     
+
+    def approximate_sph_bfe(self, write_dir):
+        if os.path.exists(write_dir):
+            
+            print("Found archived potential cube.")
+            self.pot_cube = np.load(write_dir)["arr_0"]
+        else:
+            for s in tqdm(range(self.rs.shape[1])):
+                s_dir = os.path.join(write_dir, f"sph_bfe_{s}")
+                # These are particles from the accreting subhalos that will
+                # be loaded onto the central halo representation once they
+                # become unbound from their host.
+
+                x_stack = []
+                v_stack = []
+
+                # load everything in smooth
+                particles = self.part.read(s, mode='smooth')
+ 
+                for h in range(1, self.rs.shape[0]):
+                    w_path = os.path.join(s_dir, f"coef_subhalo_{h}.coef_mul")
+                    # Check if subhalo has not disrupted
+                    intact = self.rs[h, s]["ok"]
+
+                    # `merger_snap`
+
+                    # Check if subhalo infalls onto the main halo
+                    infall = True if (s >= self.hist["merger_snap"][h]) else False
+
+                    if not infall:
+                        continue
+
+                    ok = is_bound(
+                            particles[h]["x"],
+                            particles[h]["v"],
+                            self.rs[h, s]['x'],
+                            self.rs[h, s]["v"],
+                            self.params
+                        )
+                    
+                    # Arbitrary particle cut to ensure a good fit
+                    # particle_cut = np.sum(ok) > 40
+
+                    if intact:
+
+                        # Load unbound particles into the central halo
+                        x_stack.append(particles[h]['x'][~ok])
+                        v_stack.append(particles[h]['v'][~ok])
+
+                        h_x = self.rs[h, s]["x"]
+                        h_v = self.rs[h, s]["v"]
+                        rvir = self.rs[h, s]["rvir"]
+
+                        logrh = np.log10(rh_rvir_relation(rvir, True))
+
+                        q = particles[h]["x"][ok]
+                        p = particles[h]["v"][ok]
+
+                        masses = (np.ones(np.sum(ok)) * self.mp)
+
+                        pot = agama.Potential(
+                            type="multipole",
+                            particles=(q[ok] - h_x, masses), # offset expansion by the subhalo position
+                            symmetry="none",
+                            lmax=1,
+                            rmin=0.001,
+                            rmax=250.,
+                            center=h_x,
+                        )
+
+                        pot.export(w_path)
+
+                        
+                    
+                    elif (not intact):
+                        # If fully disrupted or insufficient particle count,
+                        # dump all particles into the central.
+                        print(f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo...")
+                        x_stack.append(particles[h]['x'])
+                        v_stack.append(particles[h]['v'])
+                    else:
+                        # Do nothing.
+                        print(f"[{h}, {s}]: Halos that have not infallen are not tracked.")
+                        continue 
+
+                # Perform fit on central halo
+                particles = self.part.read(s, mode='smooth')
+                w_path = os.path.join(s_dir, f"coef_subhalo_0.coef_mul")
+                x_stack.append(particles[0]['x'])
+                v_stack.append(particles[0]['x'])
+
+                x_c = np.vstack(x_stack)
+                v_c = np.vstack(v_stack)
+
+                masses = (np.ones(len(x_c)) * self.mp)
+
+                pot = agama.Potential(
+                    type="multipole",
+                    particles=(x_c, masses), # offset expansion by the subhalo position
+                    symmetry="none",
+                    lmax=4,
+                    rmin=0.001,
+                    rmax=250.,
+                )
+
+                pot.export(s_dir)
+
+                
+
+
     def approximate_sph_potential(self, write_dir):
         
         if os.path.exists(write_dir):
