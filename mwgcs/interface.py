@@ -46,7 +46,7 @@ from .sampler import DwarfGCMF, EadieSampler, KGSampler
 
 
 class SymphonyInterfacer(Interfacer):
-    def __init__(self, sim_dir, gcmf=DwarfGCMF, **kwargs):
+    def __init__(self, sim_dir, gcmf=DwarfGCMF, potential_type="monopole", **kwargs):
         self.sim_dir = sim_dir
 
         self.halo_label = os.path.split(sim_dir)[-1]
@@ -127,8 +127,10 @@ class SymphonyInterfacer(Interfacer):
         # streams come out noodle-y.
         # self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))
         
-        self.approximate_sph_potential(write_dir=os.path.join(self.halo_label, "./pot_cube.npz"))
-        self.approximate_sph_bfe(write_dir="monopole")
+        if potential_type == "einasto":
+            self.approximate_sph_potential(write_dir=os.path.join(self.halo_label, "./pot_cube.npz"))
+        elif potential_type == "monopole":
+            self.approximate_sph_bfe(write_dir=os.path.join(self.halo_label, "monopole"))
 
         # self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
 
