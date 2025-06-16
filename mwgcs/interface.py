@@ -140,7 +140,7 @@ class SymphonyInterfacer(Interfacer):
             )
         elif potential_type == "central":
             self.approximate_cen_bfe(
-                write=os.path.join(self.halo_label, "./cen_bfe")
+                write_dir=os.path.join(self.halo_label, "./cen_bfe")
             )
 
         # self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
