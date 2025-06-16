@@ -138,6 +138,10 @@ class SymphonyInterfacer(Interfacer):
             self.approximate_sph_bfe(
                 write_dir=os.path.join(self.halo_label, "./monopole")
             )
+        elif potential_type == "central":
+            self.approximate_cen_bfe(
+                write=os.path.join(self.halo_label, "./cen_bfe")
+            )
 
         # self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
 
@@ -435,89 +439,34 @@ class SymphonyInterfacer(Interfacer):
 
             np.savez_compressed(write_dir, tracking_cube)
 
-    # DEPRECATE
-    def get_host_bfe(self, write_dir):
-        halo_index = 0
+    def approximate_cen_bfe(self, write_dir):
+
         if not os.path.exists(write_dir):
-            print("Creating halo directory...")
             os.mkdir(write_dir)
-        for snapshot in tqdm(range(self.rs.shape[1])):
 
-            coef_write_path = os.path.join(write_dir, f"coef_snap_{snapshot}.coef_mul")
 
-            if os.path.exists(coef_write_path):
-                print(f"Found coefficient file for snapshot {snapshot}.")
-            else:
-                particles = self.part.read(snapshot, mode="smooth")
-                q = particles[halo_index]["x"]
-                ok = particles[halo_index]["ok"]
+        for s in tqdm(range(self.rs.shape[1])):
 
-                masses = np.ones(np.sum(ok)) * self.mp
+            # Perform fit on central halo
+            particles = self.part.read(s, mode="all")
+            ok_c = particles[0]["ok"]
+            
+            w_path = os.path.join(write_dir, f"cen_bfe_{s}.coef_mul")
+    
+            x_c = particles[0]["x"][ok_c]
 
-                pot = agama.Potential(
-                    type="multipole",
-                    particles=(q[ok], masses),
-                    symmetry="none",
-                    lmax=8,
-                    rmin=0.01,
-                    rmax=300,
-                )
+            masses = np.ones(len(x_c)) * self.mp
 
-                pot.export(coef_write_path)
+            pot = agama.Potential(
+                type="multipole",
+                particles=(x_c, masses),  # offset expansion by the subhalo position
+                symmetry="none",
+                lmax=6,
+                rmin=0.001,
+                rmax=250.0,
+            )
 
-    # DEPRECATE
-    def get_subhalo_bfe(self, write_dir):
-        if not os.path.exists(write_dir):
-            print("Creating halo directory...")
-            os.mkdir(write_dir)
-        for snapshot in tqdm(range(self.rs.shape[1])):
-            snapshot_directory = os.path.join(write_dir, f"bfe_{snapshot}")
-
-            if not os.path.exists(snapshot_directory):
-                os.mkdir(snapshot_directory)
-
-            print("Trackable subhalos: ", np.where(self.rs[:, snapshot]["ok"])[0])
-
-            particles = self.part.read(snapshot, mode="all")
-
-            for halo_index in range(self.rs.shape[0]):
-                is_tracked = self.rs[halo_index, snapshot]["ok"]
-
-                if is_tracked:
-
-                    coef_write_path = os.path.join(
-                        snapshot_directory, f"coef_subhalo_{halo_index}.coef_mul"
-                    )
-
-                    if os.path.exists(coef_write_path):
-                        print(
-                            f"Found halo {halo_index} coefficient file for snapshot {snapshot}."
-                        )
-                    else:
-
-                        q = particles[halo_index]["x"]
-                        ok = particles[halo_index]["ok"]
-                        print("Particle count: ", sum(ok))
-                        if np.sum(ok) < 20:
-                            continue
-
-                        subhalo_pos = self.rs[halo_index, snapshot]["x"]
-                        masses = np.ones(np.sum(ok)) * self.mp
-
-                        pot = agama.Potential(
-                            type="multipole",
-                            particles=(
-                                q[ok] - subhalo_pos,
-                                masses,
-                            ),  # offset expansion by the subhalo position
-                            symmetry="none",
-                            lmax=8,
-                            rmin=0.001,
-                            rmax=300.0,
-                            center=subhalo_pos,
-                        )
-
-                        pot.export(coef_write_path)
+            pot.export(w_path)
 
     def approximate_sph_bfe(self, write_dir):
 
