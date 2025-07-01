@@ -361,6 +361,8 @@ class SymphonyInterfacer(Interfacer):
             particle_tag_arr["disrupt_snap"] = arr["disrupt_snap"]
             particle_tag_arr["gc_mass"] = arr["gc_mass"]
             particle_tag_arr["nimbus_index"] = np.zeros(len(arr), dtype=int) - 1
+            particle_tag_arr["feh"] = np.zeros(len(arr), dtype=float)
+            particle_tag_arr["aform"] = np.zeros(len(arr), dtype=float)
 
             for snap in tqdm(infall_snaps):
                 # particles = self.part.read(snap, mode="stars")
@@ -392,8 +394,10 @@ class SymphonyInterfacer(Interfacer):
                         np.arange(len(prob)), size=1, replace=False, p=prob
                     )
 
-                    # NOTE: refactor particle_id to ``nimbus_index``
                     particle_tag_arr["nimbus_index"][k] = particle_tag_index
+                    particle_tag_arr["feh"] = stars[hid][particle_tag_index]['Fe_H']
+                    particle_tag_arr["aform"] = stars[hid][particle_tag_index]['aform']
+
 
             np.savez_compressed(write_dir, particle_tag_arr)
             self.particle_tags = np.load(write_dir)["arr_0"]
