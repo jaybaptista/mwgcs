@@ -353,7 +353,7 @@ class SymphonyInterfacer(Interfacer):
                     ("gc_mass", float),
                     ("nimbus_index", int),
                     ("feh", float),
-                    ("aform", float),
+                    ("a_form", float),
                 ]
             )
 
