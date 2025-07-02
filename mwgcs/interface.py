@@ -128,7 +128,7 @@ class SymphonyInterfacer(Interfacer):
         # DEPRECATE:
         # The dynamics of a DM particle cannot be fully reconstructed and the
         # streams come out noodle-y.
-        # self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))
+        self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))
 
         if potential_type == "einasto":
             self.approximate_sph_potential(
