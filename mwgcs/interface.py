@@ -388,8 +388,6 @@ class SymphonyInterfacer(Interfacer):
 
                     prob = stars[hid]["mp"] / np.sum(stars[hid]["mp"])
 
-                    # draw tag ids
-
                     # TODO: fix this, you might accidentally pick the same particle
 
                     particle_tag_index = np.random.choice(
@@ -397,8 +395,8 @@ class SymphonyInterfacer(Interfacer):
                     )
 
                     particle_tag_arr["nimbus_index"][k] = particle_tag_index
-                    particle_tag_arr["feh"] = stars[hid][particle_tag_index]['Fe_H']
-                    particle_tag_arr["a_form"] = stars[hid][particle_tag_index]['a_form']
+                    particle_tag_arr["feh"][k] = stars[hid][particle_tag_index]['Fe_H']
+                    particle_tag_arr["a_form"][k] = stars[hid][particle_tag_index]['a_form']
 
 
             np.savez_compressed(write_dir, particle_tag_arr)
@@ -475,12 +473,9 @@ class SymphonyInterfacer(Interfacer):
             pot.export(w_path)
 
     def approximate_sph_bfe(self, write_dir):
-
         if not os.path.exists(write_dir):
             os.mkdir(write_dir)
-
         if False:
-
             print("Found archived potential cube.")
             self.pot_cube = np.load(write_dir)["arr_0"]
         else:
