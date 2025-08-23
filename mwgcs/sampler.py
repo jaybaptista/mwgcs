@@ -58,11 +58,16 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=3.0, system_mass_sampler=EadieSampl
         gcs_mass = system_mass_sampler(stellar_mass)
     else:
         gcs_mass = system_mass_sampler(halo_mass)
-        
-    if (gcs_mass == 0.0) or (gcs_mass < 2e4):
+    
+    # Why did I remove the cutoff? 
+    # Eadie+24 samples have a M_gcs of 1e2 in the Local Group!
+    # https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0
+
+    if (gcs_mass == 0.0): # or (gcs_mass < gc_cutoff):
         return None
     
     gc_mass = []
+    
     while np.sum(gc_mass) <= gcs_mass:
         sampled_magnitude = np.random.normal(-7.02, 0.57)
         sampled_luminosity = magnitude_to_luminosity(sampled_magnitude)
