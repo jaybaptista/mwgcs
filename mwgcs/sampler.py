@@ -68,16 +68,14 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=3.0, system_mass_sampler=EadieSampl
         sampled_luminosity = magnitude_to_luminosity(sampled_magnitude)
         sampled_mass = luminosity_to_mass(sampled_luminosity, mass_light_ratio)
         
-        if sampled_mass > gcs_mass:
-            continue
-        
+        if (sampled_mass + np.sum(gc_mass)) > gcs_mass:
+            # With probability (gcs_mass - np.sum(gc_mass)) / sampled_mass, keep the last sample
+            prob = (gcs_mass - np.sum(gc_mass)) / sampled_mass
+            if np.random.rand() > prob:
+                break
+
         gc_mass.append(sampled_mass)
     
-    # ratio = (np.sum(accumulated_mass) - gc_peak_mass) / last_sampled_mass
-
-    # if (np.random.uniform(0, 1) > ratio) & (len(accumulated_mass) > 1):
-    #     accumulated_mass = accumulated_mass[:-1]
-
     return np.array(gc_mass)
 
 

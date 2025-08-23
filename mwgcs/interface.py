@@ -47,7 +47,7 @@ from .sampler import DwarfGCMF, EadieSampler, KGSampler
 
 
 class SymphonyInterfacer(Interfacer):
-    def __init__(self, sim_dir, gcmf=DwarfGCMF, potential_type="monopole", **kwargs):
+    def __init__(self, sim_dir, gcmf=DwarfGCMF, gcsysmf=EadieSampler, potential_type="monopole", **kwargs):
         self.sim_dir = sim_dir
 
         self.halo_label = os.path.split(sim_dir)[-1]
@@ -120,8 +120,8 @@ class SymphonyInterfacer(Interfacer):
         # stream progenitors.
 
         self.assign_particle_tags(
-            KGSampler,
-            DwarfGCMF,
+            gcsysmf,
+            gcmf,
             write_dir=os.path.join(self.halo_label, "./ParticleTags.npz"),
         )
 
@@ -130,18 +130,18 @@ class SymphonyInterfacer(Interfacer):
         # streams come out noodle-y.
         self.track_particles(write_dir=os.path.join(self.halo_label, "./ParticleTracks.npz"))
 
-        if potential_type == "einasto":
-            self.approximate_sph_potential(
-                write_dir=os.path.join(self.halo_label, "./pot_cube.npz")
-            )
-        elif potential_type == "monopole":
-            self.approximate_sph_bfe(
-                write_dir=os.path.join(self.halo_label, "./monopole")
-            )
-        elif potential_type == "central":
-            self.approximate_cen_bfe(
-                write_dir=os.path.join(self.halo_label, "./cen_bfe")
-            )
+        # if potential_type == "einasto":
+        #     self.approximate_sph_potential(
+        #         write_dir=os.path.join(self.halo_label, "./pot_cube.npz")
+        #     )
+        # elif potential_type == "monopole":
+        #     self.approximate_sph_bfe(
+        #         write_dir=os.path.join(self.halo_label, "./monopole")
+        #     )
+        # elif potential_type == "central":
+        #     self.approximate_cen_bfe(
+        #         write_dir=os.path.join(self.halo_label, "./cen_bfe")
+        #     )
 
         # self.getConvergenceRadii(write_dir=os.path.join(self.halo_label, "./rconv.npz"))
 
