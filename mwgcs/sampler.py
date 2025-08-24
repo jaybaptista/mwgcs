@@ -80,6 +80,12 @@ def DwarfGCMF(stellar_mass, mass_light_ratio=3.0, system_mass_sampler=EadieSampl
                 break
 
         gc_mass.append(sampled_mass)
+
+    # Making a nuclear star cluster
+    # https://iopscience.iop.org/article/10.3847/1538-4357/ac457e#apjac457es4
+    # This one also looks like a good reference too: https://arxiv.org/pdf/1601.02613
+    if np.log10(stellar_mass) > 5.5:
+        gc_mass.append(10**(2.68 + 0.38 * np.log10(stellar_mass)))
     
     return np.array(gc_mass)
 
