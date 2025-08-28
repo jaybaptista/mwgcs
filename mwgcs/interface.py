@@ -123,21 +123,22 @@ class SymphonyInterfacer(Interfacer):
             ),
         )
 
+        self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), True)
         # Interface with simulation outputs and generate initial conditions for
         # stream progenitors.
 
-        self.assign_particle_tags(
-            gcsysmf,
-            gcmf,
-            write_dir=os.path.join(self.output_dir, "./ParticleTags.npz"),
-            allow_nsc=allow_nsc,
-        )
+        #self.assign_particle_tags(
+        #    gcsysmf,
+        #    gcmf,
+        #    write_dir=os.path.join(self.output_dir, "./ParticleTags.npz"),
+        #    allow_nsc=allow_nsc,
+        #)
 
         self.track_particles(
-            write_dir=os.path.join(self.output_dir, "./ParticleTracks.npz")
+            write_dir=os.path.join(self.output_dir, "particle_tracking.npz")
         )
 
-        self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), True)
+        #self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), True)
     
     def getRedshift(self, snapshot):
         """
@@ -247,10 +248,11 @@ class SymphonyInterfacer(Interfacer):
             print("Cluster system exists. Loading from memory.")
             df = pd.read_csv(write_path)
             self.particle_tags = df
+            return df
 
 
         # Only mask subhalos that infall onto the central halo
-        _mask = self.infall_snaps != -1
+        _mask = (self.infall_snaps != -1) & (self.preinfall_host_idx == -1)
 
         halo_indices = np.arange(len(self.infall_snaps))[_mask]
         infall_masses = self.infall_mass[_mask]
@@ -301,8 +303,8 @@ class SymphonyInterfacer(Interfacer):
         df["feh"] = 0.0
         df["a_form"] = 0.0
 
-        for snap in tqdm(np.unique(df["infall_snaps"])):
-            mask = (df["infall_snaps"] == snap) & (df["preinfall_host_idx"] == -1)
+        for snap in tqdm(np.unique(df["infall_snap"]), desc="Assigning metallicities and ages..."):
+            mask = (df["infall_snap"] == snap) & (df["preinfall_host_idx"] == -1)
             
             if not mask.any():
                 continue
@@ -511,12 +513,15 @@ class SymphonyInterfacer(Interfacer):
             )
 
             # loop over each snapshot
-            for snapshot in tqdm(range(self.rs.shape[1])):
+            for snapshot in tqdm(range(self.rs.shape[1]), desc="Tracking particles across snapshots..."):
                 
-                # Load all the subhalos at a given snapshot
-                # and their corresponding particles
+                # Load all the subhalos at a given snapshot and their corresponding particles
                 
                 particles = self.part.read(snapshot, mode="stars")
+
+		# Trick to get the particle indices from Nimbus
+		# (since particle tag indices are calculated relative to their
+		# first particle in a given subhalo)
 
                 part_flat = np.hstack(particles)
                 sizes = np.array([len(p) for p in particles])
