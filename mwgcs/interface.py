@@ -4,8 +4,9 @@ import os
 import asdf
 from tqdm import tqdm
 from scipy.stats import norm
-import agama
+import pandas as pd
 
+import agama
 agama.setUnits(length=1, velocity=1, mass=1)
 
 class Interfacer(abc.ABC):
@@ -135,6 +136,8 @@ class SymphonyInterfacer(Interfacer):
         self.track_particles(
             write_dir=os.path.join(self.output_dir, "./ParticleTracks.npz")
         )
+
+        self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), True)
     
     def getRedshift(self, snapshot):
         """
@@ -228,6 +231,113 @@ class SymphonyInterfacer(Interfacer):
                 data[k] = self.getConvergenceRadius(k)
 
             np.savez_compressed(write_dir, data)
+
+    def generate_clusters(
+            self,
+            system_mass_sampler,
+            gc_mass_sampler,
+            write_path,
+            allow_nsc=True,
+            rng=None
+    ):
+        
+        rng = np.random.default_rng() if rng is None else rng
+
+        if os.path.exists(write_path):
+            print("Cluster system exists. Loading from memory.")
+            df = pd.read_csv(write_path)
+            self.particle_tags = df
+
+
+        # Only mask subhalos that infall onto the central halo
+        _mask = self.infall_snaps != -1
+
+        halo_indices = np.arange(len(self.infall_snaps))[_mask]
+        infall_masses = self.infall_mass[_mask]
+        infall_snaps = self.infall_snaps[_mask]
+        disrupt_snaps = self.disrupt_snaps[_mask]
+        infall_halo_mass = self.infall_halo_mass[_mask]
+        preinfall_host_idx = self.preinfall_host_idx[_mask]
+
+        rows = []
+
+        for i, infall_mass in enumerate(tqdm(infall_masses, desc="Sampling GC masses...")):
+            gc_masses = gc_mass_sampler(
+                infall_mass,
+                system_mass_sampler=system_mass_sampler,
+                halo_mass=infall_halo_mass[i],
+                allow_nsc=allow_nsc
+            )
+
+            if gc_masses is None:
+                continue
+
+            gc_masses = np.asarray(gc_masses, dtype='float')
+
+            if gc_masses.size == 0:
+                continue
+
+            rows.append(pd.DataFrame({
+                "halo_index": np.repeat(halo_indices[i], gc_masses.size),
+                "infall_snap": np.repeat(infall_snaps[i], gc_masses.size),
+                "disrupt_snap": np.repeat(disrupt_snaps[i], gc_masses.size),
+                "gc_mass": gc_masses,
+                "preinfall_host_idx": np.repeat(preinfall_host_idx[i], gc_masses.size),
+            }))
+
+        if not rows:
+            # Empty case
+            df = pd.DataFrame(columns=[
+                "halo_index","infall_snap","disrupt_snap","gc_mass","preinfall_host_idx",
+                "nimbus_index","feh","a_form"
+            ])
+            df.to_csv(write_path, index=False)
+            self.particle_tags = df
+            return df
+        
+        df = pd.concat(rows, ignore_index=True)
+
+        df["nimbus_index"] = -1
+        df["feh"] = 0.0
+        df["a_form"] = 0.0
+
+        for snap in tqdm(np.unique(df["infall_snaps"])):
+            mask = (df["infall_snaps"] == snap) & (df["preinfall_host_idx"] == -1)
+            
+            if not mask.any():
+                continue
+
+            subset = df[mask]
+
+            for hid, idxs in subset.groupby("halo_index").groups.items():
+                stars, _, _ = symlib.tag_stars(self.sim_dir, self.gal_halo, target_subs=[hid])
+                mp = stars[hid]["mp"]
+                prob = mp / np.sum(mp)
+
+                for k in idxs:
+                    particle_tag_index = rng.choice(np.arange(len(prob)), size=1, replace=False, p=prob)[0]
+                    df.at[k, "nimbus_index"] = int(particle_tag_index)
+                    df.at[k, "feh"] = float(stars[hid][particle_tag_index]["Fe_H"])
+                    df.at[k, "a_form"] = float(stars[hid][particle_tag_index]["a_form"])
+
+        # Ensure consistent dtypes
+        df = df.astype({
+            "halo_index": "int64",
+            "infall_snap": "int64",
+            "disrupt_snap": "int64",
+            "preinfall_host_idx": "int64",
+            "nimbus_index": "int64",
+            "gc_mass": "float64",
+            "feh": "float64",
+            "a_form": "float64",
+        }, errors="ignore")
+
+        os.makedirs(os.path.dirname(write_path), exist_ok=True)
+        df.to_csv(write_path, index=False)
+
+        self.particle_tags = df
+        return df
+
 
     def initialize_gc_array(self, system_mass_sampler, gc_mass_sampler, allow_nsc):
         print("Initializing GC tag data structure...")
@@ -426,7 +536,7 @@ class SymphonyInterfacer(Interfacer):
                     tracking_data[snapshot, ok, :3] = part_flat[i_t]["x"]
                     tracking_data[snapshot, ok, 3:] = part_flat[i_t]["v"]
 
-            np.savez_compressed(write_dir, tracking_data)
+            np.savez_compressed(write_dir, xv=tracking_data)
 
     def make_multipole_potential(self, write_dir):
         if not os.path.exists(write_dir):
