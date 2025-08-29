@@ -20,11 +20,11 @@ RMAX         = 250
 KAPPA = 1.0
 IMF   = "kroupa"
 
-si = SymphonyInterfacer(
-    halo_directory,
-    gcmf=GC_MASS_FUNCTION,
-    gcsysmf=GCS_MASS_FUNCTION,
-    output_prefix=OUTPUT,
-    allow_nsc=ALLOW_NSC
-)
+#si = SymphonyInterfacer(
+#    halo_directory,
+#    gcmf=GC_MASS_FUNCTION,
+#    gcsysmf=GCS_MASS_FUNCTION,
+#    output_prefix=OUTPUT,
+#    allow_nsc=ALLOW_NSC
+#)
 

@@ -16,7 +16,7 @@ agama.setUnits(length=1, velocity=1, mass=1)
 class Interfacer(abc.ABC):
     def __init__(self, snapshots, times, scale_factors, **kwargs):
         self.snapshots = snapshots
-        self.cosmic_time = times
+        self.times = times
         self.a = scale_factors
 
     @abc.abstractmethod
@@ -381,12 +381,14 @@ class SymphonyInterfacer(Interfacer):
 
         write_dir = self.output_dir if write_dir is None else write_dir
 
-        if not os.path.exists(write_dir):
+        if os.path.exists(write_dir):
             print(f"Potential directory found. To refit basis function expansion, delete the potential direcrtory: {write_dir}")
-            os.mkdir(write_dir)
         else:
             for s in tqdm(range(self.rs.shape[1])):
                 s_dir = os.path.join(write_dir, f"snapshot_{s}")
+
+                if not os.path.exists(write_dir):
+                    os.mkdir(write_dir)
 
                 if not os.path.exists(s_dir):
                     os.mkdir(s_dir)
