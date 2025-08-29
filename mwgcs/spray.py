@@ -1,9 +1,11 @@
-import numpy as np 
-import agama
-from tqdm import tqdm
-agama.setUnits(length=1.,mass=1.,velocity=1.)
-from itertools import chain
 import os
+from itertools import chain
+
+import numpy as np
+from tqdm import tqdm
+import agama
+
+agama.setUnits(length=1., mass=1., velocity=1.)
 
 from .evolve import evolve_stellar_mass
 

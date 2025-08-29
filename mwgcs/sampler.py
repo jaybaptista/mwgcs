@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.integrate import quad
-from scipy.stats import norm, uniform
+from scipy.stats import uniform
 
 
 # TODO: Test this function at some point for GC occupation.
@@ -20,7 +20,7 @@ def EadieProbGC(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
         return 1
 
 
-def EadieSampler(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
+def GCS_MASS_EADIE(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
     """
     Implementation of the log-hurdle model from Eadie+2022
     Source: https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0
@@ -54,10 +54,10 @@ def luminosity_to_mass(luminosity, ratio=3.0):
     return luminosity * ratio
 
 
-def DwarfGCMF(
+def GCMF_ELVES(
     stellar_mass,
     mass_light_ratio=3.0,
-    system_mass_sampler=EadieSampler,
+    system_mass_sampler=GCS_MASS_EADIE,
     halo_mass=1e12,
     allow_nsc=True,
 ):
@@ -79,7 +79,7 @@ def DwarfGCMF(
     gc_cutoff = 2e4
     gcs_mass = 0.0
 
-    if system_mass_sampler == EadieSampler:
+    if system_mass_sampler == GCS_MASS_EADIE:
         gcs_mass = system_mass_sampler(stellar_mass)
     else:
         gcs_mass = system_mass_sampler(halo_mass)

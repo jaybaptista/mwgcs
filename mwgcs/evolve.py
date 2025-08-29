@@ -1,9 +1,7 @@
-import agama
 import numpy as np
-from scipy.interpolate import interp1d
+import agama
 from scipy.integrate import quad
 from tqdm import tqdm
-from itertools import chain
 
 
 agama.setUnits(mass=1.0, length=1.0, velocity=1.0)

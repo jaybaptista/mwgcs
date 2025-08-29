@@ -1,10 +1,14 @@
 import abc
-import numpy as np
 import os
-import asdf
-from tqdm import tqdm
-from scipy.stats import norm
+
+import numpy as np
 import pandas as pd
+from tqdm import tqdm
+
+import symlib
+from colossus.cosmology import cosmology
+
+from .sampler import GCMF_ELVES, GCS_MASS_EADIE
 
 import agama
 agama.setUnits(length=1, velocity=1, mass=1)
@@ -37,17 +41,15 @@ class Interfacer(abc.ABC):
         self.sh_pos = positions
 
 
-import symlib
-from colossus.cosmology import cosmology
-from .sampler import DwarfGCMF, EadieSampler
+
 
 
 class SymphonyInterfacer(Interfacer):
     def __init__(
         self,
         sim_dir,
-        gcmf=DwarfGCMF,
-        gcsysmf=EadieSampler,
+        gcmf=GCMF_ELVES,
+        gcsysmf=GCS_MASS_EADIE,
         output_prefix="./",
         allow_nsc=True,
         **kwargs,
@@ -123,16 +125,7 @@ class SymphonyInterfacer(Interfacer):
             ),
         )
 
-        self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), True)
-        # Interface with simulation outputs and generate initial conditions for
-        # stream progenitors.
-
-        #self.assign_particle_tags(
-        #    gcsysmf,
-        #    gcmf,
-        #    write_dir=os.path.join(self.output_dir, "./ParticleTags.npz"),
-        #    allow_nsc=allow_nsc,
-        #)
+        self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), allow_nsc)
 
         self.track_particles(
             write_dir=os.path.join(self.output_dir, "particle_tracking.npz")
@@ -340,173 +333,11 @@ class SymphonyInterfacer(Interfacer):
         self.particle_tags = df
         return df
 
-
-    def initialize_gc_array(self, system_mass_sampler, gc_mass_sampler, allow_nsc):
-        print("Initializing GC tag data structure...")
-
-        # mask for subhalos that have infall snaps
-        m = self.infall_snaps != -1
-
-        # halo indices of subhalos that have infall snaps
-        halo_indices = np.arange(len(self.infall_snaps))[m]
-
-        # infall STELLAR masses of subhalos that have infall snaps
-        infall_masses = self.infall_mass[m]
-        infall_snaps = self.infall_snaps[m]
-        disrupt_snaps = self.disrupt_snaps[m]
-        infall_halo_mass = self.infall_halo_mass[m]
-        preinfall_host_idx = self.preinfall_host_idx[m]
-
-        halo_indices_list = []
-        infall_snap_list = []
-        disrupt_snap_list = []
-        gc_masses_list = []
-        preinfall_host_idx_list = []
-
-        for i, infall_mass in enumerate(tqdm(infall_masses)):
-            # obtain individual GC masses for each GC system
-            gc_masses = gc_mass_sampler(
-                infall_mass,
-                system_mass_sampler=system_mass_sampler,
-                halo_mass=infall_halo_mass[i],
-                allow_nsc=allow_nsc,
-            )
-
-            if gc_masses is None:
-                continue
-            else:
-                gc_masses = np.array(gc_masses)
-
-            halo_indices_list.append(np.repeat(halo_indices[i], len(gc_masses)))
-            infall_snap_list.append(np.repeat(infall_snaps[i], len(gc_masses)))
-            disrupt_snap_list.append(np.repeat(disrupt_snaps[i], len(gc_masses)))
-            print(len(gc_masses))
-            gc_masses_list.append(gc_masses)
-            preinfall_host_idx_list.append(
-                np.repeat(preinfall_host_idx[i], len(gc_masses))
-            )
-
-        # Prepare entries for the structured array.
-        array_halo_indices = np.hstack(halo_indices_list)  # int
-        array_infall_snap = np.hstack(infall_snap_list)  # int
-        array_disrupt_snap = np.hstack(disrupt_snap_list)  # int
-        array_gc_masses = np.hstack(gc_masses_list)  # float64
-        array_preinfall_host_idx = np.hstack(preinfall_host_idx_list)  # int
-
-        # Define structured array
-        dtype = np.dtype(
-            [
-                ("halo_index", int),
-                ("infall_snap", int),
-                ("disrupt_snap", int),
-                ("gc_mass", float),
-                ("preinfall_host_idx", int),
-            ]
-        )
-
-        # Load structured array with entries.
-        result_array = np.empty(len(array_halo_indices), dtype=dtype)
-        result_array["halo_index"] = array_halo_indices
-        result_array["infall_snap"] = array_infall_snap
-        result_array["disrupt_snap"] = array_disrupt_snap
-        result_array["gc_mass"] = array_gc_masses
-        result_array["preinfall_host_idx"] = array_preinfall_host_idx
-
-        return result_array
-
-    def assign_particle_tags(
-        self,
-        system_mass_sampler,
-        gc_mass_sampler,
-        write_dir,
-        tmp_dir="tmp.npz",
-        allow_nsc=True,
-    ):
-        tmp_save_dir = os.path.join(self.output_dir, tmp_dir)
-
-        if os.path.exists(write_dir):
-            print("Found particle tag `.npz`...")
-            self.particle_tags = np.load(write_dir)["arr_0"]
-        else:
-            print("Assigning GC tags...")
-
-            arr = None
-
-            if os.path.exists(tmp_save_dir):
-                arr = np.load(tmp_save_dir)["arr_0"]
-            else:
-                arr = self.initialize_gc_array(
-                    system_mass_sampler, gc_mass_sampler, allow_nsc
-                )
-                np.savez_compressed(tmp_save_dir, arr)
-
-            infall_snaps = self.infall_snaps[self.infall_snaps != -1]
-
-            # Create a new structured array but with new columns to
-            # accomodate star data.
-
-            dtype = np.dtype(
-                [
-                    ("halo_index", int),
-                    ("infall_snap", int),
-                    ("disrupt_snap", int),
-                    ("gc_mass", float),
-                    ("nimbus_index", int),
-                    ("feh", float),
-                    ("a_form", float),
-                ]
-            )
-
-            part_info = np.empty(len(arr), dtype=dtype)
-            part_info["halo_index"] = arr["halo_index"]
-            part_info["infall_snap"] = arr["infall_snap"]
-            part_info["disrupt_snap"] = arr["disrupt_snap"]
-            part_info["gc_mass"] = arr["gc_mass"]
-            part_info["nimbus_index"] = np.zeros(len(arr), dtype=int) - 1
-            part_info["feh"] = np.zeros(len(arr), dtype=float)
-            part_info["a_form"] = np.zeros(len(arr), dtype=float)
-
-            for snap in tqdm(infall_snaps):
-                # Only assign tags to halos which are currently infalling at this snapshot
-                infall_snap_condition = part_info["infall_snap"] == snap
-
-                # TODO: Do I need to simulate the pre-infallen GCs?
-                # This might change the forecast.
-                # Only assign tags to halos that are infalling onto the host halo
-
-                # Ensure galaxy's first infall is onto the central halo
-                infall_halo_condition = arr["preinfall_host_idx"] == -1
-                indices = np.where(infall_snap_condition & infall_halo_condition)[0]
-
-                halo_ids = part_info["halo_index"][indices]
-
-                for k, hid in zip(indices, halo_ids):
-                    stars, _, _ = symlib.tag_stars(
-                        self.sim_dir, self.gal_halo, target_subs=[hid]
-                    )
-
-                    prob = stars[hid]["mp"] / np.sum(stars[hid]["mp"])
-
-                    # TODO: fix this, you might accidentally pick the same particle
-
-                    particle_tag_index = np.random.choice(
-                        np.arange(len(prob)), size=1, replace=False, p=prob
-                    )
-
-                    part_info["nimbus_index"][k] = particle_tag_index
-                    part_info["feh"][k] = stars[hid][particle_tag_index]["Fe_H"]
-                    part_info["a_form"][k] = stars[hid][particle_tag_index]["a_form"]
-
-            np.savez_compressed(write_dir, part_info)
-            self.particle_tags = np.load(write_dir)["arr_0"]
-
     def track_particles(self, write_dir):
         if os.path.exists(write_dir):
-            print("Found archived particle tracking file...")
+            print("Found archived particle tracking file. Loading file from memory.")
         else:
             particle_tag_indices = np.arange(len(self.particle_tags))
-
-            # Structured array has shape (snapshot, particle index, position(3), velocity(3))
 
             tracking_data = (
                 np.zeros((self.rs.shape[1], len(particle_tag_indices), 6)) * np.nan
@@ -519,9 +350,9 @@ class SymphonyInterfacer(Interfacer):
                 
                 particles = self.part.read(snapshot, mode="stars")
 
-		# Trick to get the particle indices from Nimbus
-		# (since particle tag indices are calculated relative to their
-		# first particle in a given subhalo)
+                # Trick to get the particle indices from Nimbus
+                # (since particle tag indices are calculated relative to their
+                # first particle in a given subhalo)
 
                 part_flat = np.hstack(particles)
                 sizes = np.array([len(p) for p in particles])
@@ -543,12 +374,16 @@ class SymphonyInterfacer(Interfacer):
 
             np.savez_compressed(write_dir, xv=tracking_data)
 
-    def make_multipole_potential(self, write_dir):
+    def make_multipole_potential(self, write_dir=None, rmax=250, rmin=0.01, lmax_sub=1, lmax=4, verbose=False):
+
+        write_dir = self.output_dir if write_dir is None else write_dir
+
         if not os.path.exists(write_dir):
+            print(f"Potential directory found. To refit basis function expansion, delete the potential direcrtory: {write_dir}")
             os.mkdir(write_dir)
         else:
             for s in tqdm(range(self.rs.shape[1])):
-                s_dir = os.path.join(write_dir, f"sph_bfe_{s}")
+                s_dir = os.path.join(write_dir, f"snapshot_{s}")
 
                 if not os.path.exists(s_dir):
                     os.mkdir(s_dir)
@@ -564,7 +399,7 @@ class SymphonyInterfacer(Interfacer):
 
                 for h in range(1, self.rs.shape[0]):
 
-                    coefficient_write_path = os.path.join(s_dir, f"coef_subhalo_{h}.coef_mul")
+                    coefficient_write_path = os.path.join(s_dir, f"subhalo_{h}.coef_mul")
 
                     # Check if subhalo has not disrupted at this snapshot
                     intact = self.rs[h, s]["ok"]
@@ -606,9 +441,9 @@ class SymphonyInterfacer(Interfacer):
                                 masses,
                             ),  # offset expansion by the subhalo position
                             symmetry="spherical",
-                            lmax=1,
-                            rmin=0.001,
-                            rmax=250.0,
+                            lmax=lmax_sub,
+                            rmin=rmin,
+                            rmax=rmax,
                             center=h_x,
                         )
 
@@ -619,40 +454,103 @@ class SymphonyInterfacer(Interfacer):
                         # If fully disrupted or insufficient particle count,
                         # dump all particles into the central.
                         
-                        print(
-                            f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo..."
-                        )
+                        if verbose:
+                            print(
+                                f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo..."
+                            )
                         x_stack.append(particles[h]["x"][ok_part])
                     else:
                         # Do nothing.
                         
-                        print(
-                            f"[{h}, {s}]: Halos that have not infallen are not tracked."
-                        )
+                        if verbose:
+                            print(
+                                f"[{h}, {s}]: Halos that have not infallen are not tracked."
+                            )
                         
                         continue
 
                 # Perform fit on central halo
                 particles = self.part.read(s, mode="smooth")
                 ok_c = particles[0]["ok"]
-                coefficient_write_path = os.path.join(s_dir, f"coef_subhalo_0.coef_mul")
+                coefficient_write_path = os.path.join(s_dir, f"subhalo_0.coef_mul")
                 x_stack.append(particles[0]["x"][ok_c])
 
                 x_c = np.vstack(x_stack)
 
                 masses = np.ones(len(x_c)) * self.mp
 
+                if x_c.shape[0] == 0:
+                    if verbose:
+                        print("Central halo has no particles at this snapshot.")
+                    continue
+
                 pot = agama.Potential(
                     type="multipole",
                     particles=(x_c, masses),
                     symmetry="none",
-                    lmax=4,
-                    rmin=0.001,
-                    rmax=250.0,
+                    lmax=lmax,
+                    rmin=rmin,
+                    rmax=rmax,
                 )
 
                 pot.export(coefficient_write_path)
 
+            os.makedirs(os.path.join(write_dir, "traj"), exist_ok=True)
+            traj_path = os.path.join(write_dir, "traj/traj_%i.txt")
+    
+            # Link coefficients together
+            write_path = os.path.join(write_dir, "full_cosmo.dat")
+
+            # convert to internal AGAMA units
+            self.times_ag = self.times * (1/0.978) 
+
+            with open(write_path, 'w') as f:
+                for h in tqdm(np.arange(self.rs.shape[0]), desc="Linking potentials..."):
+            
+                    integers = []
+            
+                    for s in np.arange(self.rs.shape[1]):
+                        if os.path.exists(os.path.join(write_dir, f"snapshot_{s}/subhalo_{h}.coef_mul")):
+                            integers.append(s)
+            
+                    if len(integers) == 0:
+                        continue
+                    
+                    # Generate trajectories
+                    with open(traj_path % h, 'w') as g:
+                        for s in integers:                    
+                            x_h = self.rs[h, s]['x']
+                            v_h = self.rs[h, s]['v']
+                            g.write(f"{self.times_ag[s]} {x_h[0]} {x_h[1]} {x_h[2]} {v_h[0]} {v_h[1]} {v_h[2]}\n")
+                    
+                    f.write(f"[Potential halo_{h}]\n")
+                    f.write("type=Evolving\n")
+                    f.write("interpLinear=True\n")
+                    f.write(f"center=traj/traj_{h}.txt\n")
+                    f.write("Timestamps\n")
+            
+                    if sorted(integers)[0] > 0:
+                        f.write(f"{self.times_ag[sorted(integers)[0]-1]} null.dat\n")
+                    
+                    for k in sorted(integers):
+                        f.write(f"{self.times_ag[k]} snapshot_{k}/subhalo_{h}.coef_mul\n")
+            
+                    if (sorted(integers)[-1] + 1) < self.rs.shape[1]:
+                        f.write(f"{self.times_ag[(sorted(integers)[-1] + 1)]} null.dat\n")
+                    
+                    f.write("\n")
+
+                # TODO: Put in fictitious forces.
+                # f.write(f"[Potential acc]\n")
+                # f.write(f"type=UniformAcceleration\n")
+                # f.write(f"file=acc.dat")
+
+                # Write null potential
+                with open(os.path.join(write_dir, 'null.dat'), 'w') as f:
+                    f.write(f"[Potential]\n")
+                    f.write(f"type=Plummer\n")
+                    f.write(f"mass=0.\n")
+                    f.write(f"scaleRadius=10.\n")
 
 def is_bound(q, p, subhalo_pos, subhalo_vel, params):
     dq = q - subhalo_pos
