@@ -59,6 +59,9 @@ class SymphonyInterfacer(Interfacer):
         """
 
         self.sim_dir = sim_dir
+
+        os.makedirs(output_prefix, exist_ok=True)
+
         self.output_dir = os.path.join(output_prefix, os.path.split(sim_dir)[-1])
 
         if not os.path.exists(self.output_dir):
