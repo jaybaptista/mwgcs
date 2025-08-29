@@ -6,3 +6,6 @@
 *.pyc
 *.o
 *.so
+**/.ipynb_checkpoints/
+**/deprecate/
+**/__pycache__/
