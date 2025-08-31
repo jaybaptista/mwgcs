@@ -62,8 +62,8 @@ def main():
         allow_nsc=ALLOW_NSC,
         )
     
-    clusters = pd.read_csv(os.path.join(output, "cluster/clusters.csv"))
-    tracking = np.load(os.path.join(output, "cluster/particle_tracking.npz"))
+    clusters = pd.read_csv(os.path.join(output, "./cluster/clusters.csv"))
+    tracking = np.load(os.path.join(output, "./cluster/particle_tracking.npz"))
     
     # Make potentials
 
@@ -85,7 +85,7 @@ def main():
 
         infall_snapshot = clusters['infall_snap'][i_gc]
         m0 = clusters['gc_mass'][i_gc]
-        w0 = tracking[infall_snapshot, i_gc]
+        w0 = tracking['xv'][infall_snapshot, i_gc]
         t0 = si.times_ag[infall_snapshot]
         tf = si.times_ag[-1]
         feh = clusters['feh'][i_gc]
