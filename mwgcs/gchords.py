@@ -10,6 +10,10 @@ GC_MASS_FUNCTION  = GCMF_ELVES
 GCS_MASS_FUNCTION = GCS_MASS_EADIE
 ALLOW_NSC         = True
 
+"""Orbit Integration"""
+ACCURACY=1e-8
+THREAD_COUNT=4
+
 """Multipole Approximation"""
 LMAX         = 4
 LMAX_SUBHALO = 1

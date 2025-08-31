@@ -24,7 +24,6 @@ class GC:
         age=0.0,
         imf=None,
         sev=True,
-        save_to="gc.npz",
         feh=-2,
         accuracy=1e-8,
         output_prefix="./",
@@ -43,7 +42,10 @@ class GC:
         self.npts = npts
         self.self_gravity = self_gravity
 
-        self.stream_dir = os.path.join(output_prefix, 'stream')
+        os.makedirs(output_prefix, exist_ok=True)
+
+        self.gc_path = os.path.join(output_prefix, "gc.npz")
+        self.stream_path = os.path.join(output_prefix, 'stream.npz')
         self.prog_dir = os.path.join(output_prefix, 'prog')
 
         self.thread_count = thread_count
@@ -92,7 +94,7 @@ class GC:
         self.ml = ml
 
         np.savez(
-                save_to,
+                self.gc_path,
                 track=self.prog_w,
                 m=self.masses,
                 t=self.prog_t,
@@ -334,7 +336,7 @@ class GC:
             ws.append(xv)
 
         np.savez(
-            self.stream_dir,
+            self.stream_path,
             w=np.array(ws, dtype=object),
             track=self.prog_w,
             ics=self.ics,
@@ -344,7 +346,3 @@ class GC:
             rj=self.rj,
             t_ej=t_ej
         )
-
-        
-
-

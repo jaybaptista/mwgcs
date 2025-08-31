@@ -50,7 +50,7 @@ class SymphonyInterfacer(Interfacer):
         sim_dir,
         gcmf=GCMF_ELVES,
         gcsysmf=GCS_MASS_EADIE,
-        output_prefix="./",
+        output_prefix=None,
         allow_nsc=True,
         **kwargs,
     ):
@@ -60,9 +60,11 @@ class SymphonyInterfacer(Interfacer):
 
         self.sim_dir = sim_dir
 
+        output_prefix = os.path.split(sim_dir)[-1] if output_prefix is None else output_prefix
+
         os.makedirs(output_prefix, exist_ok=True)
 
-        self.output_dir = os.path.join(output_prefix, os.path.split(sim_dir)[-1])
+        self.output_dir = os.path.join(output_prefix, "cluster")
 
         if not os.path.exists(self.output_dir):
             print("Creating halo directory...")
@@ -504,7 +506,7 @@ class SymphonyInterfacer(Interfacer):
             traj_path = os.path.join(write_dir, "traj/traj_%i.txt")
     
             # Link coefficients together
-            write_path = os.path.join(write_dir, "full_cosmo.dat")
+            write_path = os.path.join(write_dir, "cosmo_potential.dat")
 
             # convert to internal AGAMA units
             self.times_ag = self.times * (1/0.978) 
