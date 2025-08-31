@@ -62,8 +62,8 @@ def main():
         allow_nsc=ALLOW_NSC,
         )
     
-    clusters = pd.read_csv(os.path.join(output, "clusters.csv"))
-    tracking = np.load(os.path.join(output, "particle_tracking.npz"))
+    clusters = pd.read_csv(os.path.join(output, "cluster/clusters.csv"))
+    tracking = np.load(os.path.join(output, "cluster/particle_tracking.npz"))
     
     # Make potentials
 
