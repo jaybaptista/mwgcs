@@ -14,7 +14,7 @@ base_dir = "/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/"
 n_hosts = np.arange(symlib.n_hosts("SymphonyMilkyWay")) # 45 hosts
 output_directory = "/sdf/data/kipac/u/jaymarie/gchords_gc_only"
 
-os.mkdirs(output_directory, exist_ok=True)
+os.makedirs(output_directory, exist_ok=True)
 
 parser = argparse.ArgumentParser(description="Run SymphonyMW for a specific host.")
 parser.add_argument("n_halo", type=int, help="Index of the host halo to process")
