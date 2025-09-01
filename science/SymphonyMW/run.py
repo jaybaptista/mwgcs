@@ -4,6 +4,7 @@ import os
 import argparse
 import agama
 import pandas as pd
+from tqdm import tqdm
 
 agama.setUnits(mass=1.,length=1.,velocity=1.)
 
@@ -81,7 +82,7 @@ def main():
 
     # Run globular cluster evolution
 
-    for i_gc in np.arange(len(clusters)):
+    for i_gc in tqdm(np.arange(len(clusters))):
 
         infall_snapshot = clusters['infall_snap'][i_gc]
         m0 = clusters['gc_mass'][i_gc]
@@ -98,7 +99,7 @@ def main():
             imf=IMF,
             accuracy=ACCURACY,
             thread_count=THREAD_COUNT,
-            output_prefix=os.path.join(output, f"gc_{i_gc})"),
+            output_prefix=os.path.join(output, f"gc_{i_gc}"),
         )
 
         # gc.stream(10,)
