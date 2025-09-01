@@ -85,6 +85,9 @@ class SymphonyInterfacer(Interfacer):
 
         super().__init__(snapshots, times, scale_factors)
 
+        # convert to internal AGAMA units
+        self.times_ag = self.times * (1/0.978) 
+
         # Obtain catalog outputs
         self.rs, self.hist = symlib.read_rockstar(self.sim_dir)
         self.sf, _ = symlib.read_symfind(self.sim_dir)
@@ -508,8 +511,7 @@ class SymphonyInterfacer(Interfacer):
             # Link coefficients together
             write_path = os.path.join(write_dir, "cosmo_potential.dat")
 
-            # convert to internal AGAMA units
-            self.times_ag = self.times * (1/0.978) 
+            
 
             with open(write_path, 'w') as f:
                 for h in tqdm(np.arange(self.rs.shape[0]), desc="Linking potentials..."):
