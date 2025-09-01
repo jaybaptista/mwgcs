@@ -98,7 +98,6 @@ def main():
             imf=IMF,
             accuracy=ACCURACY,
             thread_count=THREAD_COUNT,
-            save_to="gc.npz",
             output_prefix=os.path.join(output, f"gc_{i_gc})"),
         )
 
