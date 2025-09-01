@@ -294,12 +294,13 @@ class ClusterMass:
         t_final=13.9,
         imf=None,
         sev=True,
+        Z=1e-2
     ):
         self.kappa = kappa
         self.m0 = initial_mass
 
         # Sample initial stellar population
-        spop, lifetimes = sample_ssp(initial_mass, initial_age, imf=imf)
+        spop, lifetimes = sample_ssp(initial_mass, initial_age, imf=imf, Z=Z)
         self.spop_init = np.copy(spop)
         self.spop = np.copy(self.spop_init) # evolved stellar population
         self.mstar = np.sum(spop) # initial ZAMS stellar mass
