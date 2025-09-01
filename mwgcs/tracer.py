@@ -267,21 +267,26 @@ class GC:
 
         for k, mass in enumerate(self.masses):
             filename = os.path.join(prog_dir, f"potential_{k}.ini")
+            
+            # Generate plummer approximation of cluster potential
             with open(filename, "w") as f:
                 f.write("[Potential]\n")
                 f.write("type=Plummer\n")
                 f.write(f"mass={mass}\n")
                 f.write(f"scaleRadius={scaleRadius}\n")
 
-            with open("progenitor.ini", "w") as f:
+            # Link potentials together
+            with open(os.path.join(prog_dir, "progenitor.ini"), "w") as f:
                 f.write("[Potential prog]\n")
                 f.write("type=Evolving\n")
                 f.write("interpLinear=True\n")
+                f.write(f"center=progenitor.txt\n")
                 f.write("Timestamps\n")
                 for k, t in enumerate(self.prog_t):
                     f.write(f"{t} {prog_dir}/potential_{k}.ini\n")
 
-            with open("progenitor.txt", "w") as f:
+            # Write orbit centers
+            with open(os.path.join(prog_dir, "progenitor.txt"), "w") as f:
                 for k, t in enumerate(self.prog_t):
                     f.write(f"{t} {' '.join(map(str, self.prog_w[k, :]))} \n")
 

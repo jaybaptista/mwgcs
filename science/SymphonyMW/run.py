@@ -26,7 +26,7 @@ args = parser.parse_args()
 """GC–Halo Connection"""
 GC_MASS_FUNCTION  = GCMF_ELVES
 GCS_MASS_FUNCTION = GCS_MASS_EADIE
-ALLOW_NSC         = True
+ALLOW_NSC         = False
 
 """Orbit Integration"""
 ACCURACY=1e-8
