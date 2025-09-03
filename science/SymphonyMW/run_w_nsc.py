@@ -13,7 +13,7 @@ from mwgcs import GCS_MASS_EADIE, GCMF_ELVES, SymphonyInterfacer, GC
 
 base_dir = "/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/"
 n_hosts = np.arange(symlib.n_hosts("SymphonyMilkyWay")) # 45 hosts
-output_directory = "/sdf/data/kipac/u/jaymarie/gchords_gc_only_no_nsc"
+output_directory = "/sdf/data/kipac/u/jaymarie/gchords_gc_only_with_nsc"
 
 os.makedirs(output_directory, exist_ok=True)
 
@@ -26,7 +26,7 @@ args = parser.parse_args()
 """GC–Halo Connection"""
 GC_MASS_FUNCTION  = GCMF_ELVES
 GCS_MASS_FUNCTION = GCS_MASS_EADIE
-ALLOW_NSC         = False
+ALLOW_NSC         = True
 
 """Orbit Integration"""
 ACCURACY=1e-8
@@ -69,16 +69,8 @@ def main():
     # Make potentials
 
     potential_path = os.path.join(output, 'potential')
-    si.make_multipole_potential(
-        potential_path,
-        rmax=RMAX,
-        rmin=RMIN,
-        lmax=4,
-        lmax_sub=1,
-        verbose=True
-    )
 
-    potential = agama.Potential(file=os.path.join(potential_path, 'cosmo_potential.dat'))
+    potential = agama.Potential(file=f'/sdf/data/kipac/u/jaymarie/gchords_gc_only_no_nsc/{host_name}/potential/cosmo_potential.dat')
 
     # Run globular cluster evolution
 
