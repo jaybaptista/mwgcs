@@ -254,7 +254,6 @@ class SymphonyInterfacer(Interfacer):
             self.particle_tags = df
             return df
 
-
         # Only mask subhalos that infall onto the central halo
         _mask = (self.infall_snaps != -1) & (self.preinfall_host_idx == -1)
 
@@ -338,7 +337,9 @@ class SymphonyInterfacer(Interfacer):
             "a_form": "float64",
         }, errors="ignore")
 
-        os.makedirs(os.path.dirname(write_path), exist_ok=True)
+        dir_name = os.path.dirname(write_path)
+        if dir_name != '':
+            os.makedirs(dir_name, exist_ok=True)
         df.to_csv(write_path, index=False)
 
         self.particle_tags = df

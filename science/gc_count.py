@@ -66,7 +66,7 @@ def main():
         )
     
     for k in tqdm(np.arange(N_REALIZATIONS), desc="Population realization"):
-        si.generate_clusters(GCS_MASS_FUNCTION, GC_MASS_FUNCTION, f"cr_{k}.csv", allow_nsc=False)
+        si.generate_clusters(GCS_MASS_FUNCTION, GC_MASS_FUNCTION, write_path=f"cr_{k}.csv", allow_nsc=False)
     
 if __name__ == "__main__":
     main()
