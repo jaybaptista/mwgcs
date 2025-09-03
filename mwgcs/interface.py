@@ -58,6 +58,8 @@ class SymphonyInterfacer(Interfacer):
         Symphony interface for `gchords`
         """
 
+        freeze = kwargs.get("freeze", False)
+
         self.sim_dir = sim_dir
 
         output_prefix = os.path.split(sim_dir)[-1] if output_prefix is None else output_prefix
@@ -133,11 +135,12 @@ class SymphonyInterfacer(Interfacer):
             ),
         )
 
-        self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), allow_nsc)
+        if not freeze:
+            self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), allow_nsc)
 
-        self.track_particles(
-            write_dir=os.path.join(self.output_dir, "particle_tracking.npz")
-        )
+            self.track_particles(
+                write_dir=os.path.join(self.output_dir, "particle_tracking.npz")
+            )
 
         #self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), True)
     
