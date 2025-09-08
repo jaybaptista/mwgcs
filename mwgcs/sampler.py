@@ -38,33 +38,6 @@ def GCS_MASS_EADIE(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
 
     return 10**system_mass
 
-def GCMF_EADIE(stellar_mass, system_mass_sampler=GCS_MASS_EADIE, b0=-10.31, b1=1.43, mass_light_ratio=1.98):
-    gcs_mass = system_mass_sampler(stellar_mass)
-    
-    # Obtain N_gcs
-    n_gcs = np.exp(b0 + b1 * np.log10(gcs_mass))
-    
-    # Use the ELVES GCMF to sample n_gcs
-
-    gc_mass = []
-
-    while np.sum(gc_mass) <= gcs_mass:
-        sampled_magnitude = np.random.normal(-7.02, 0.57)
-        sampled_luminosity = magnitude_to_luminosity(sampled_magnitude)
-        sampled_mass = luminosity_to_mass(sampled_luminosity, mass_light_ratio)
-
-        if (sampled_mass + np.sum(gc_mass)) > gcs_mass:
-            # With probability (gcs_mass - np.sum(gc_mass)) / sampled_mass, keep the last sample
-            prob = (gcs_mass - np.sum(gc_mass)) / sampled_mass
-            if np.random.rand() > prob:
-                break
-
-        gc_mass.append(sampled_mass)
-
-    return np.array(gc_mass)
-
-
-
 def KGSampler(halo_mass):
     """
     Equation 6 from Kravstov & Gnedin (2003)
@@ -177,6 +150,28 @@ def GCMF_2009(
 
     return np.array(gc_mass)
 
+def _GCMF_ELVES(n_samples, mu=-7.02, sigma_m=0.57, M_gsun=5.12, ml_ratio=2.0,
+                   M_min=1e2, M_max=1e7):
+    
+    C = M_gsun + 2.5*np.log10(ml_ratio)
+    
+    M_mu = 10**((C - mu) / 2.5)
+
+    # Gaussian parameters in log10 M
+    sigma_X = sigma_m / 2.5
+    X_mu = np.log10(M_mu)
+
+    # draw samples in log10 M
+    X_samples = np.random.normal(loc=X_mu, scale=sigma_X, size=n_samples)
+
+    # convert back to M
+    M_samples = 10**X_samples
+
+    # enforce limits
+    M_samples = M_samples[(M_samples >= M_min) & (M_samples <= M_max)]
+
+    return M_samples
+
 
 def GCMF_ELVES(
     stellar_mass,
@@ -201,7 +196,6 @@ def GCMF_ELVES(
     # See https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0
 
 
-    gc_cutoff = 2e4
     gcs_mass = 0.0
 
     if system_mass_sampler == GCS_MASS_EADIE:
@@ -215,9 +209,7 @@ def GCMF_ELVES(
     gc_mass = []
 
     while np.sum(gc_mass) <= gcs_mass:
-        sampled_magnitude = np.random.normal(-7.02, 0.57)
-        sampled_luminosity = magnitude_to_luminosity(sampled_magnitude)
-        sampled_mass = luminosity_to_mass(sampled_luminosity, mass_light_ratio)
+        sampled_mass = _GCMF_ELVES(1)
 
         if (sampled_mass + np.sum(gc_mass)) > gcs_mass:
             # With probability (gcs_mass - np.sum(gc_mass)) / sampled_mass, keep the last sample
