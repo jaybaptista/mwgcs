@@ -173,12 +173,23 @@ def _GCMF_ELVES(n_samples, mu=-7.02, sigma_m=0.57, M_gsun=5.12, ml_ratio=2.0,
     return M_samples
 
 
+def GAUSSIAN_GCMF(M, mu, sigma_m, M_gsun=5.12, ml_ratio=2.0, A=1.0):
+    jac =1.0 / (np.log(10) * M)
+    sigma_M = sigma_m / 2.5
+    C = M_gsun + 2.5*np.log10(ml_ratio)
+    M_mu = 10**((C - mu) / 2.5)
+    norm = (A / (np.sqrt(2 * np.pi) * sigma_M))
+    dn_dm = norm * np.exp(-(1/(2*sigma_M**2)) * (-np.log10(M) + np.log10(M_mu))**2)
+    return dn_dm * jac
+
+
 def GCMF_ELVES(
     stellar_mass,
     mass_light_ratio=1.98,
     system_mass_sampler=GCS_MASS_EADIE,
     halo_mass=1e12,
     allow_nsc=True,
+    p_gc=False
 ):
     """
     Returns samples from the dwarf galaxy mass function derived from the GCLF from
@@ -197,6 +208,13 @@ def GCMF_ELVES(
 
 
     gcs_mass = 0.0
+
+    if p_gc:
+        # Use GC occupation probability to determine whether or not a galaxy
+        # has a GC.
+        has_gc = EadieProbGC(stellar_mass)
+        if has_gc == 0:
+            return np.array([])
 
     if system_mass_sampler == GCS_MASS_EADIE:
         gcs_mass = system_mass_sampler(stellar_mass)
