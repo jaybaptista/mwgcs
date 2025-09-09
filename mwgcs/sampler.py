@@ -23,6 +23,12 @@ def EadieProbGC(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
     else:
         return 1
 
+def GCS_MASS_LINEAR(stellar_mass, g0=-0.725, g1=0.788):
+    """
+    Implementation of the linear regression model from Eadie+2022
+    Source: https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0
+    """
+    return 10**(g0 + g1 * np.log10(stellar_mass))
 
 def GCS_MASS_EADIE(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
     """
@@ -186,7 +192,7 @@ def GAUSSIAN_GCMF(M, mu, sigma_m, M_gsun=5.12, ml_ratio=2.0, A=1.0):
 def GCMF_ELVES(
     stellar_mass,
     mass_light_ratio=1.98,
-    system_mass_sampler=GCS_MASS_EADIE,
+    system_mass_sampler=GCS_MASS_LINEAR,
     halo_mass=1e12,
     allow_nsc=True,
     p_gc=False
@@ -216,7 +222,12 @@ def GCMF_ELVES(
         if has_gc == 0:
             return np.array([])
 
-    if system_mass_sampler == GCS_MASS_EADIE:
+    # Check if the system mass sampler bases its
+    # estimate on the stellar mass or halo mass
+
+    if (system_mass_sampler == GCS_MASS_EADIE) \
+        or (system_mass_sampler == GCS_MASS_LINEAR):
+
         gcs_mass = system_mass_sampler(stellar_mass)
     else:
         gcs_mass = system_mass_sampler(halo_mass)
