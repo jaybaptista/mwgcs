@@ -29,7 +29,7 @@ GCS_MASS_FUNCTION = GCS_MASS_EADIE
 ALLOW_NSC         = False
 
 """Orbit Integration"""
-ACCURACY=1e-8
+ACCURACY=1e-12
 THREAD_COUNT=32
 
 """Multipole Approximation"""
