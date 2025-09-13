@@ -70,7 +70,7 @@ def luminosity_to_mass(luminosity, ratio=3.0):
 """
 SAMPLER UTILITIES FOR GAUSSIANS
 """
-def get_icdf(func, x_min=1e-2, x_max=1e3, **kwargs):
+def get_icdf(func, x_min=1e-2, x_max=1e10, **kwargs):
     n_grid = 100
     x_grid = np.logspace(np.log10(x_min), np.log10(x_max), n_grid)
     pdf = func(x_grid, **kwargs)
@@ -242,6 +242,7 @@ def GCMF_GEORGIEV(
 
     lam = gcs_mass / mean_M_mu
     n_draws = np.random.poisson(lam)
+
     samples = sample_generic_gcmf(
         n_draws, mu_V, sigma_V, M_sun=V_sun, ml_ratio=mass_light_ratio
     )
@@ -283,9 +284,6 @@ def GCMF_ELVES(
 
     gcs_mass = 0.0
 
-    if (gcs_mass == 0.0) or (p_gc and (EadieProbGC(stellar_mass) == 0)):
-        return []
-
     if (system_mass_sampler == GCS_MASS_EADIE) or (
         system_mass_sampler == GCS_MASS_LINEAR
     ):
@@ -293,11 +291,14 @@ def GCMF_ELVES(
     else:
         gcs_mass = system_mass_sampler(halo_mass)
 
+    if (gcs_mass == 0.0) or (p_gc and (EadieProbGC(stellar_mass) == 0)):
+        return []
+    
     gc_mass = []
 
     # ELVES Survey Parameters
-    mu_g = -7.04
-    sigma_g = 1.15
+    mu_g = -7.02
+    sigma_g = 0.57
     g_sun = 5.05  # AB mag
     C = g_sun + 2.5 * np.log10(mass_light_ratio)
     M_mu = 10 ** ((C - mu_g) / 2.5)
@@ -307,8 +308,8 @@ def GCMF_ELVES(
     lam = gcs_mass / mean_M_mu
     n_draws = np.random.poisson(lam)
 
-    lam = gcs_mass / M_mu
-    n_draws = np.random.poisson(lam)
+    print("DRAWS", n_draws)
+
     samples = sample_generic_gcmf(
         n_draws, mu_g, sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio
     )
