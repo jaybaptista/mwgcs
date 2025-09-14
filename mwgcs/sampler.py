@@ -241,6 +241,11 @@ def GCMF_GEORGIEV(
     mean_M_mu = M_mu * np.exp(0.5 * (np.log(10) * sigma_mu) ** 2)
 
     lam = gcs_mass / mean_M_mu
+
+    if (lam <= 0) or np.isnan(lam):
+        print(f"ERROR: gcs_mass / mean_gc_mass = {lam}")
+        return []
+
     n_draws = np.random.poisson(lam)
 
     samples = sample_generic_gcmf(
@@ -306,6 +311,11 @@ def GCMF_ELVES(
 
     mean_M_mu = M_mu * np.exp(0.5 * (np.log(10) * sigma_mu) ** 2)
     lam = gcs_mass / mean_M_mu
+
+    if (lam <= 0) or np.isnan(lam):
+        print(f"ERROR: gcs_mass / mean_gc_mass = {lam}")
+        return []
+    
     n_draws = np.random.poisson(lam)
 
     print("DRAWS", n_draws)
