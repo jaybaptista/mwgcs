@@ -1,6 +1,6 @@
 import abc
 import os
-
+import itertools
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -276,6 +276,8 @@ class SymphonyInterfacer(Interfacer):
 
             if gc_masses is None:
                 continue
+
+            gc_masses = list(itertools.chain.from_iterable(gc_masses))
 
             gc_masses = np.asarray(gc_masses, dtype='float')
 

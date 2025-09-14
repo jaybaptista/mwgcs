@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 agama.setUnits(mass=1.,length=1.,velocity=1.)
 
-from mwgcs import GCS_MASS_EADIE, GCMF_ELVES, SymphonyInterfacer, GC
+from mwgcs import GCS_MASS_EADIE, GCMF_ELVES, GCMF_GEORGIEV, SymphonyInterfacer, GC
 
 
 base_dir = "/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/"
@@ -46,7 +46,7 @@ IMF   = "kroupa"
 
 def main():
 
-    N_REALIZATIONS = 50
+    N_REALIZATIONS = 100
 
     if args.n_halo >= len(n_hosts):
         raise ValueError(f"n_halo ({args.n_halo}) is out of range. Must be less than {len(n_hosts)}.")
@@ -66,7 +66,7 @@ def main():
         )
     
     for k in tqdm(np.arange(N_REALIZATIONS), desc="Population realization"):
-        si.generate_clusters(GCS_MASS_FUNCTION, GC_MASS_FUNCTION, write_path=os.path.join(si.output_dir, f"cr_{k}.csv"), allow_nsc=False)
+        si.generate_clusters(GCS_MASS_FUNCTION, GC_MASS_FUNCTION, write_path=os.path.join(si.output_dir, f"crvirgo_{k}.csv"), allow_nsc=False)
     
 if __name__ == "__main__":
     main()
