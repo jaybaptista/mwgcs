@@ -3,6 +3,7 @@ from scipy.integrate import quad
 from scipy.stats import uniform
 from scipy.interpolate import interp1d
 
+from itertools import chain
 """
 Mass-to-light ratios are taken from N-body modeling of globular clusters:
 https://arxiv.org/abs/1609.08794
@@ -252,7 +253,7 @@ def GCMF_GEORGIEV(
         n_draws, mu_V, sigma_V, M_sun=V_sun, ml_ratio=mass_light_ratio
     )
 
-    gc_mass.append(samples)
+    gc_mass.extend(samples)
 
     if allow_nsc:
         if np.log10(stellar_mass) > 5.5:
@@ -318,13 +319,11 @@ def GCMF_ELVES(
     
     n_draws = np.random.poisson(lam)
 
-    print("DRAWS", n_draws)
-
     samples = sample_generic_gcmf(
         n_draws, mu_g, sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio
     )
 
-    gc_mass.append(samples)
+    gc_mass.extend(samples)
 
     if allow_nsc:
         if np.log10(stellar_mass) > 5.5:
