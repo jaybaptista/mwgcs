@@ -79,16 +79,6 @@ def luminosity_to_mass(luminosity, ratio=3.0):
 """
 SAMPLER UTILITIES FOR GAUSSIANS
 """
-def get_icdf(func, x_min=1e-2, x_max=1e10, **kwargs):
-    n_grid = 100
-    x_grid = np.logspace(np.log10(x_min), np.log10(x_max), n_grid)
-    pdf = func(x_grid, **kwargs)
-    cdf = np.cumsum(pdf)
-    cdf = cdf / cdf[-1]
-
-    icdf = interp1d(cdf, x_grid, bounds_error=False, fill_value=(x_min, x_max))
-    return icdf
-
 
 def generic_gcmf_gaussian(M, mu=-7.0, sigma_m=1.0, M_sun=5.12, ml_ratio=2.0, A=1.0):
     jac = 1.0 / (np.log(10) * M)
@@ -103,17 +93,56 @@ def generic_gcmf_gaussian(M, mu=-7.0, sigma_m=1.0, M_sun=5.12, ml_ratio=2.0, A=1
     )
     return dn_dm * jac
 
+def make_lognormal10_icdf(mu_log10, sigma, 
+                          Mmin=1e-2, Mmax=1e8, n_grid=4096):
+    """
+    Build an inverse CDF for the PDF:
+      dN/dM = [1/(ln 10 * M)] * [1/(sqrt(2π) * σ_M)] *
+              exp( - (log10 M - μ)^2 / (2 σ_M^2) )
+    """
+    M = np.logspace(np.log10(Mmin), np.log10(Mmax), n_grid)
+
+    # logspaced grid
+    x = np.log10(M)
+
+    norm = np.log(10) * M * (np.sqrt(2*np.pi) * sigma)
+    pdf = np.exp(-0.5 * ((x - mu_log10)/sigma)**2) / norm
+    pdf = np.clip(pdf, 0.0, np.inf)
+
+    # Integrate with trapezoid rule to get CDF
+    cdf = np.zeros_like(M)
+    cdf[1:] = np.cumsum(0.5 * (pdf[1:] + pdf[:-1]) * np.diff(M))
+
+    total = cdf[-1]
+    if not np.isfinite(total) or total <= 0:
+        raise ValueError("PDF integral is non-positive over the chosen range.")
+    cdf /= total
+
+    # Ensure strict monotonicity (protect against flat tails)
+    cdf = np.maximum.accumulate(cdf)
+    cdf[-1] = 1.0
+
+    # Build inverse CDF via interpolation
+    icdf_interp = interp1d(cdf, M, kind="linear", bounds_error=False,
+                           fill_value=(Mmin, Mmax), assume_sorted=True)
+
+    def icdf(u):
+        u = np.asarray(u, dtype=float)
+        u = np.clip(u, 0.0, 1.0)
+        return icdf_interp(u)
+
+    return icdf
+
 
 def sample_generic_gcmf(n, mu, sigma_m, M_sun=5.12, ml_ratio=2.0, A=1.0):
-    icdf = get_icdf(
-        generic_gcmf_gaussian,
-        mu=mu,
-        sigma_m=sigma_m,
-        M_sun=M_sun,
-        ml_ratio=ml_ratio,
-        A=A,
-    )
 
+    sigma_M = sigma_m / 2.5
+    C = M_sun + 2.5 * np.log10(
+        ml_ratio
+    )  # Note, M_gsun is the absolute M-band magnitude, not mass
+    M_mu = 10 ** ((C - mu) / 2.5)
+
+    icdf = make_lognormal10_icdf(np.log10(M_mu), sigma_M)
     u = np.random.uniform(size=n)
     samples = icdf(u)
     return samples
