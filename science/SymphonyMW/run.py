@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 agama.setUnits(mass=1.,length=1.,velocity=1.)
 
-from mwgcs import GCS_MASS_EADIE, GCMF_ELVES, SymphonyInterfacer, GC
+from mwgcs import GCS_MASS_EADIE, GCMF_ELVES, GCS_NUMBER_LINEAR, SymphonyInterfacer, GC
 
 
 base_dir = "/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/"
@@ -25,7 +25,7 @@ args = parser.parse_args()
 
 """GC–Halo Connection"""
 GC_MASS_FUNCTION  = GCMF_ELVES
-GCS_MASS_FUNCTION = GCS_MASS_EADIE
+GCS_MASS_FUNCTION = GCS_NUMBER_LINEAR
 ALLOW_NSC         = False
 
 """Orbit Integration"""

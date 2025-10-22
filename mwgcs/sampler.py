@@ -57,6 +57,9 @@ def GCS_MASS_EADIE(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
 
     return 10**system_mass
 
+def GCS_NUMBER_LINEAR(halo_mass):
+    eta_N = 10**(-8.56 - 0.11 * np.log10(halo_mass))
+    return eta_N * halo_mass
 
 def KGSampler(halo_mass):
     """
@@ -247,27 +250,13 @@ def GCMF_GEORGIEV(
     system_mass_sampler=GCS_MASS_LINEAR,
     halo_mass=1e12,
     allow_nsc=True,
-    p_gc=True,
+    p_gc=False,
 ):
     """
     Taken from Georgiev+2009 sample for the dSph luminosity functions
     Source: https://ui.adsabs.harvard.edu/abs/2009MNRAS.392..879G/abstract
     => Valid up to galaxy stellar masses of ~1e9 Msun
     """
-
-    gcs_mass = 0.0
-
-    if (system_mass_sampler == GCS_MASS_EADIE) or (
-        system_mass_sampler == GCS_MASS_LINEAR
-    ):
-        gcs_mass = system_mass_sampler(stellar_mass)
-    else:
-        gcs_mass = system_mass_sampler(halo_mass)
-
-    if (gcs_mass == 0.0) or (p_gc and (EadieProbGC(stellar_mass) == 0)):
-        return []
-
-    gc_mass = []
 
     # Georgiev Survey Parameters
     mu_V = -7.04
@@ -277,6 +266,28 @@ def GCMF_GEORGIEV(
     M_mu = 10 ** ((C - mu_V) / 2.5)
     sigma_mu = sigma_V / 2.5
     mean_M_mu = M_mu * np.exp(0.5 * (np.log(10) * sigma_mu) ** 2)
+    gcs_mass = 0.0
+
+    if (system_mass_sampler == GCS_MASS_EADIE) or (
+        system_mass_sampler == GCS_MASS_LINEAR
+    ):
+        gcs_mass = system_mass_sampler(stellar_mass)
+    elif (system_mass_sampler == GCS_NUMBER_LINEAR):
+        # If the system mass is a number:
+        lam = system_mass_sampler(halo_mass)
+        n_draws = np.random.poisson(lam)
+        samples = sample_generic_gcmf(
+            n_draws, mu_V, sigma_V, M_sun=V_sun, ml_ratio=mass_light_ratio
+        )
+        
+        return np.array(samples)
+    else:
+        gcs_mass = system_mass_sampler(halo_mass)
+
+    if (gcs_mass == 0.0) or (p_gc and (EadieProbGC(stellar_mass) == 0)):
+        return []
+
+    gc_mass = []
 
     lam = gcs_mass / mean_M_mu
 
@@ -325,20 +336,6 @@ def GCMF_ELVES(
     in the Local Group! (See https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0)
     """
 
-    gcs_mass = 0.0
-
-    if (system_mass_sampler == GCS_MASS_EADIE) or (
-        system_mass_sampler == GCS_MASS_LINEAR
-    ):
-        gcs_mass = system_mass_sampler(stellar_mass)
-    else:
-        gcs_mass = system_mass_sampler(halo_mass)
-
-    if (gcs_mass == 0.0) or (p_gc and (EadieProbGC(stellar_mass) == 0)):
-        return []
-    
-    gc_mass = []
-
     # ELVES Survey Parameters
     mu_g = -7.02
     sigma_g = 0.57
@@ -346,6 +343,31 @@ def GCMF_ELVES(
     C = g_sun + 2.5 * np.log10(mass_light_ratio)
     M_mu = 10 ** ((C - mu_g) / 2.5)
     sigma_mu = sigma_g / 2.5
+    
+
+    gcs_mass = 0.0
+
+    if (system_mass_sampler == GCS_MASS_EADIE) or (
+        system_mass_sampler == GCS_MASS_LINEAR
+    ):
+        gcs_mass = system_mass_sampler(stellar_mass)
+    elif (system_mass_sampler == GCS_NUMBER_LINEAR):
+        
+        # If the system mass is a number:
+        lam = system_mass_sampler(halo_mass)
+        n_draws = np.random.poisson(lam)
+        samples = sample_generic_gcmf(
+            n_draws, mu_g, sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio
+        )
+        
+        return np.array(samples)
+    else:
+        gcs_mass = system_mass_sampler(halo_mass)
+
+    if (gcs_mass == 0.0) or (p_gc and (EadieProbGC(stellar_mass) == 0)):
+        return []
+    
+    gc_mass = []
 
     mean_M_mu = M_mu * np.exp(0.5 * (np.log(10) * sigma_mu) ** 2)
     lam = gcs_mass / mean_M_mu
