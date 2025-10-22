@@ -273,15 +273,13 @@ class SymphonyInterfacer(Interfacer):
                 halo_mass=infall_halo_mass[i],
                 allow_nsc=allow_nsc
             )
-
+            
             if gc_masses is None:
                 continue
 
             # Also skip if sampler returned an empty list/array
             if hasattr(gc_masses, "__len__") and len(gc_masses) == 0:
                 continue
-
-            gc_masses = list(itertools.chain.from_iterable(gc_masses))
 
             gc_masses = np.asarray(gc_masses, dtype='float')
 

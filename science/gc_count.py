@@ -13,7 +13,7 @@ from mwgcs import GCS_MASS_EADIE, GCMF_ELVES, GCMF_GEORGIEV, SymphonyInterfacer,
 
 base_dir = "/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/"
 n_hosts = np.arange(symlib.n_hosts("SymphonyMilkyWay")) # 45 hosts
-output_directory = "/sdf/data/kipac/u/jaymarie/gchords_n_gc"
+output_directory = "/sdf/data/kipac/u/jaymarie/gchords_n_gc_georgiev"
 
 os.makedirs(output_directory, exist_ok=True)
 
@@ -24,7 +24,7 @@ args = parser.parse_args()
 # Knobs!
 
 """GC–Halo Connection"""
-GC_MASS_FUNCTION  = GCMF_ELVES
+GC_MASS_FUNCTION  = GCMF_GEORGIEV
 GCS_MASS_FUNCTION = GCS_MASS_EADIE
 ALLOW_NSC         = False
 
@@ -66,7 +66,7 @@ def main():
         )
     
     for k in tqdm(np.arange(N_REALIZATIONS), desc="Population realization"):
-        si.generate_clusters(GCS_MASS_FUNCTION, GC_MASS_FUNCTION, write_path=os.path.join(si.output_dir, f"crvirgo_{k}.csv"), allow_nsc=False)
+        si.generate_clusters(GCS_MASS_FUNCTION, GC_MASS_FUNCTION, write_path=os.path.join(si.output_dir, f"crgeorgiev_{k}.csv"), allow_nsc=False)
     
 if __name__ == "__main__":
     main()
