@@ -279,6 +279,15 @@ def GCMF_GEORGIEV(
         samples = sample_generic_gcmf(
             n_draws, mu_V, sigma_V, M_sun=V_sun, ml_ratio=mass_light_ratio
         )
+
+        if samples is None:
+            return []
+        try:
+            if samples.size == 0:
+                return []
+        except AttributeError:
+            if len(samples) == 0:
+                return []
         
         return np.array(samples)
     else:
@@ -359,6 +368,15 @@ def GCMF_ELVES(
         samples = sample_generic_gcmf(
             n_draws, mu_g, sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio
         )
+
+        if samples is None:
+            return []
+        try:
+            if samples.size == 0:
+                return []
+        except AttributeError:
+            if len(samples) == 0:
+                return []
         
         return np.array(samples)
     else:
