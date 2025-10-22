@@ -11,7 +11,9 @@ from colossus.cosmology import cosmology
 from .sampler import GCMF_ELVES, GCS_MASS_EADIE
 
 import agama
+
 agama.setUnits(length=1, velocity=1, mass=1)
+
 
 class Interfacer(abc.ABC):
     def __init__(self, snapshots, times, scale_factors, **kwargs):
@@ -41,9 +43,6 @@ class Interfacer(abc.ABC):
         self.sh_pos = positions
 
 
-
-
-
 class SymphonyInterfacer(Interfacer):
     def __init__(
         self,
@@ -62,7 +61,9 @@ class SymphonyInterfacer(Interfacer):
 
         self.sim_dir = sim_dir
 
-        output_prefix = os.path.split(sim_dir)[-1] if output_prefix is None else output_prefix
+        output_prefix = (
+            os.path.split(sim_dir)[-1] if output_prefix is None else output_prefix
+        )
 
         self.output_prefix = output_prefix
 
@@ -90,7 +91,7 @@ class SymphonyInterfacer(Interfacer):
         super().__init__(snapshots, times, scale_factors)
 
         # convert to internal AGAMA units
-        self.times_ag = self.times * (1/0.978) 
+        self.times_ag = self.times * (1 / 0.978)
 
         # Obtain catalog outputs
         self.rs, self.hist = symlib.read_rockstar(self.sim_dir)
@@ -106,12 +107,16 @@ class SymphonyInterfacer(Interfacer):
 
         # Get snapshot of subhalo disruption.
         ok = self.rs["ok"]
-        
+
         # This is a very ugly way of doing a very simple thing.
-        rev_idx = ok[:, ::-1].argmax(axis=1) # Reverse along axis 1
+        rev_idx = ok[:, ::-1].argmax(axis=1)  # Reverse along axis 1
         has_true = ok.any(axis=1)
-        last_true_idx = ok.shape[1] - 1 - rev_idx # Compute last True index: (N - 1) - rev_idx
-        disrupt_snap = np.where(has_true, last_true_idx + 1, -1) # Only keep valid rows, others set to -1
+        last_true_idx = (
+            ok.shape[1] - 1 - rev_idx
+        )  # Compute last True index: (N - 1) - rev_idx
+        disrupt_snap = np.where(
+            has_true, last_true_idx + 1, -1
+        )  # Only keep valid rows, others set to -1
         disrupt_snap[disrupt_snap == 236] = -1
 
         self.infall_snaps = infall_snaps
@@ -138,14 +143,14 @@ class SymphonyInterfacer(Interfacer):
         )
 
         if not freeze:
-            self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), allow_nsc)
+            self.generate_clusters(
+                gcsysmf, gcmf, os.path.join(self.output_dir, "clusters.csv"), allow_nsc
+            )
 
             self.track_particles(
                 write_dir=os.path.join(self.output_dir, "particle_tracking.npz")
             )
 
-        
-    
     def getRedshift(self, snapshot):
         """
         Get the redshift of a snapshot
@@ -240,14 +245,8 @@ class SymphonyInterfacer(Interfacer):
             np.savez_compressed(write_dir, data)
 
     def generate_clusters(
-            self,
-            system_mass_sampler,
-            gc_mass_sampler,
-            write_path,
-            allow_nsc=True,
-            rng=None
+        self, system_mass_sampler, gc_mass_sampler, write_path, allow_nsc=True, rng=None
     ):
-        
         rng = np.random.default_rng() if rng is None else rng
 
         if os.path.exists(write_path):
@@ -268,14 +267,16 @@ class SymphonyInterfacer(Interfacer):
 
         rows = []
 
-        for i, infall_mass in enumerate(tqdm(infall_masses, desc=f"({self.output_prefix}) Sampling GC masses...")):
+        for i, infall_mass in enumerate(
+            tqdm(infall_masses, desc=f"({self.output_prefix}) Sampling GC masses...")
+        ):
             gc_masses = gc_mass_sampler(
                 infall_mass,
                 system_mass_sampler=system_mass_sampler,
                 halo_mass=infall_halo_mass[i],
-                allow_nsc=allow_nsc
+                allow_nsc=allow_nsc,
             )
-            
+
             if gc_masses is None:
                 continue
 
@@ -283,74 +284,100 @@ class SymphonyInterfacer(Interfacer):
             if hasattr(gc_masses, "__len__") and len(gc_masses) == 0:
                 continue
 
-            gc_masses = np.asarray(gc_masses, dtype='float')
+            gc_masses = np.asarray(gc_masses, dtype="float")
 
             if gc_masses.size == 0:
                 continue
 
-            rows.append(pd.DataFrame({
-                "halo_index": np.repeat(halo_indices[i], gc_masses.size),
-                "infall_snap": np.repeat(infall_snaps[i], gc_masses.size),
-                "disrupt_snap": np.repeat(disrupt_snaps[i], gc_masses.size),
-                "gc_mass": gc_masses,
-                "preinfall_host_idx": np.repeat(preinfall_host_idx[i], gc_masses.size),
-            }))
+            rows.append(
+                pd.DataFrame(
+                    {
+                        "halo_index": np.repeat(halo_indices[i], gc_masses.size),
+                        "infall_snap": np.repeat(infall_snaps[i], gc_masses.size),
+                        "disrupt_snap": np.repeat(disrupt_snaps[i], gc_masses.size),
+                        "gc_mass": gc_masses,
+                        "preinfall_host_idx": np.repeat(
+                            preinfall_host_idx[i], gc_masses.size
+                        ),
+                    }
+                )
+            )
 
         if not rows:
             # Empty case
-            df = pd.DataFrame(columns=[
-                "halo_index","infall_snap","disrupt_snap","gc_mass","preinfall_host_idx",
-                "nimbus_index","feh","a_form"
-            ])
+            df = pd.DataFrame(
+                columns=[
+                    "halo_index",
+                    "infall_snap",
+                    "disrupt_snap",
+                    "gc_mass",
+                    "preinfall_host_idx",
+                    "nimbus_index",
+                    "feh",
+                    "a_form",
+                ]
+            )
             df.to_csv(write_path, index=False)
             self.particle_tags = df
             return df
-        
+
         df = pd.concat(rows, ignore_index=True)
 
         df["nimbus_index"] = -1
         df["feh"] = 0.0
         df["a_form"] = 0.0
 
-        pb = tqdm(np.unique(df["infall_snap"])) #, desc="Assigning metallicities and ages...")
+        pb = tqdm(
+            np.unique(df["infall_snap"])
+        )  # , desc="Assigning metallicities and ages...")
 
         for snap in pb:
-
-            
-
             mask = (df["infall_snap"] == snap) & (df["preinfall_host_idx"] == -1)
-            
+
             if not mask.any():
                 continue
 
             subset = df[mask]
 
             for hid, idxs in subset.groupby("halo_index").groups.items():
-                pb.set_description(f"Assigning particles... (snapshot: {snap}; hid: {hid})")
-                stars, _, _ = symlib.tag_stars(self.sim_dir, self.gal_halo, target_subs=[hid])
+                pb.set_description(
+                    f"Assigning particles... (snapshot: {snap}; hid: {hid})"
+                )
+                stars, _, _ = symlib.tag_stars(
+                    self.sim_dir, self.gal_halo, target_subs=[hid]
+                )
                 mp = stars[hid]["mp"]
                 prob = mp / np.sum(mp)
 
                 for k in idxs:
-                    particle_tag_index = rng.choice(np.arange(len(prob)), size=1, replace=False, p=prob)[0]
+                    
+                    particle_tag_index = 0 # by default
+
+                    if np.sum(mp) > 0.0:
+                        particle_tag_index = rng.choice(np.arange(len(prob)), size=1, replace=False, p=prob)[0]
+                        
                     df.at[k, "nimbus_index"] = int(particle_tag_index)
                     df.at[k, "feh"] = float(stars[hid][particle_tag_index]["Fe_H"])
                     df.at[k, "a_form"] = float(stars[hid][particle_tag_index]["a_form"])
+                    
 
         # Ensure consistent dtypes
-        df = df.astype({
-            "halo_index": "int64",
-            "infall_snap": "int64",
-            "disrupt_snap": "int64",
-            "preinfall_host_idx": "int64",
-            "nimbus_index": "int64",
-            "gc_mass": "float64",
-            "feh": "float64",
-            "a_form": "float64",
-        }, errors="ignore")
+        df = df.astype(
+            {
+                "halo_index": "int64",
+                "infall_snap": "int64",
+                "disrupt_snap": "int64",
+                "preinfall_host_idx": "int64",
+                "nimbus_index": "int64",
+                "gc_mass": "float64",
+                "feh": "float64",
+                "a_form": "float64",
+            },
+            errors="ignore",
+        )
 
         dir_name = os.path.dirname(write_path)
-        if dir_name != '':
+        if dir_name != "":
             os.makedirs(dir_name, exist_ok=True)
         df.to_csv(write_path, index=False)
 
@@ -368,10 +395,11 @@ class SymphonyInterfacer(Interfacer):
             )
 
             # loop over each snapshot
-            for snapshot in tqdm(range(self.rs.shape[1]), desc="Tracking particles across snapshots..."):
-                
+            for snapshot in tqdm(
+                range(self.rs.shape[1]), desc="Tracking particles across snapshots..."
+            ):
                 # Load all the subhalos at a given snapshot and their corresponding particles
-                
+
                 particles = self.part.read(snapshot, mode="stars")
 
                 # Trick to get the particle indices from Nimbus
@@ -398,12 +426,15 @@ class SymphonyInterfacer(Interfacer):
 
             np.savez_compressed(write_dir, xv=tracking_data)
 
-    def make_multipole_potential(self, write_dir=None, rmax=250, rmin=0.01, lmax_sub=1, lmax=4, verbose=False):
-
+    def make_multipole_potential(
+        self, write_dir=None, rmax=250, rmin=0.01, lmax_sub=1, lmax=4, verbose=False
+    ):
         write_dir = self.output_dir if write_dir is None else write_dir
 
         if os.path.exists(write_dir):
-            print(f"Potential directory found. To refit basis function expansion, delete the potential direcrtory: {write_dir}")
+            print(
+                f"Potential directory found. To refit basis function expansion, delete the potential direcrtory: {write_dir}"
+            )
         else:
             for s in tqdm(range(self.rs.shape[1])):
                 s_dir = os.path.join(write_dir, f"snapshot_{s}")
@@ -424,14 +455,15 @@ class SymphonyInterfacer(Interfacer):
                 particles = self.part.read(s, mode="smooth")
 
                 for h in range(1, self.rs.shape[0]):
-
-                    coefficient_write_path = os.path.join(s_dir, f"subhalo_{h}.coef_mul")
+                    coefficient_write_path = os.path.join(
+                        s_dir, f"subhalo_{h}.coef_mul"
+                    )
 
                     # Check if subhalo has not disrupted at this snapshot
                     intact = self.rs[h, s]["ok"]
 
                     # Check if subhalo has infallen onto the main halo
-                    # at this snapshot 
+                    # at this snapshot
                     infall = True if (s >= self.hist["merger_snap"][h]) else False
 
                     if not infall:
@@ -476,10 +508,9 @@ class SymphonyInterfacer(Interfacer):
                         pot.export(coefficient_write_path)
 
                     elif not intact or not particle_cut:
-                        
                         # If fully disrupted or insufficient particle count,
                         # dump all particles into the central.
-                        
+
                         if verbose:
                             print(
                                 f"[{h}, {s}]: Fully disrupted/insufficient count, dumping particles into main halo..."
@@ -487,12 +518,12 @@ class SymphonyInterfacer(Interfacer):
                         x_stack.append(particles[h]["x"][ok_part])
                     else:
                         # Do nothing.
-                        
+
                         if verbose:
                             print(
                                 f"[{h}, {s}]: Halos that have not infallen are not tracked."
                             )
-                        
+
                         continue
 
                 # Perform fit on central halo
@@ -523,46 +554,55 @@ class SymphonyInterfacer(Interfacer):
 
             os.makedirs(os.path.join(write_dir, "traj"), exist_ok=True)
             traj_path = os.path.join(write_dir, "traj/traj_%i.txt")
-    
+
             # Link coefficients together
             write_path = os.path.join(write_dir, "cosmo_potential.dat")
 
-            
-
-            with open(write_path, 'w') as f:
-                for h in tqdm(np.arange(self.rs.shape[0]), desc="Linking potentials..."):
-            
+            with open(write_path, "w") as f:
+                for h in tqdm(
+                    np.arange(self.rs.shape[0]), desc="Linking potentials..."
+                ):
                     integers = []
-            
+
                     for s in np.arange(self.rs.shape[1]):
-                        if os.path.exists(os.path.join(write_dir, f"snapshot_{s}/subhalo_{h}.coef_mul")):
+                        if os.path.exists(
+                            os.path.join(
+                                write_dir, f"snapshot_{s}/subhalo_{h}.coef_mul"
+                            )
+                        ):
                             integers.append(s)
-            
+
                     if len(integers) == 0:
                         continue
-                    
+
                     # Generate trajectories
-                    with open(traj_path % h, 'w') as g:
-                        for s in integers:                    
-                            x_h = self.rs[h, s]['x']
-                            v_h = self.rs[h, s]['v']
-                            g.write(f"{self.times_ag[s]} {x_h[0]} {x_h[1]} {x_h[2]} {v_h[0]} {v_h[1]} {v_h[2]}\n")
-                    
+                    with open(traj_path % h, "w") as g:
+                        for s in integers:
+                            x_h = self.rs[h, s]["x"]
+                            v_h = self.rs[h, s]["v"]
+                            g.write(
+                                f"{self.times_ag[s]} {x_h[0]} {x_h[1]} {x_h[2]} {v_h[0]} {v_h[1]} {v_h[2]}\n"
+                            )
+
                     f.write(f"[Potential halo_{h}]\n")
                     f.write("type=Evolving\n")
                     f.write("interpLinear=True\n")
                     f.write(f"center=traj/traj_{h}.txt\n")
                     f.write("Timestamps\n")
-            
+
                     if sorted(integers)[0] > 0:
                         f.write(f"{self.times_ag[sorted(integers)[0]-1]} null.dat\n")
-                    
+
                     for k in sorted(integers):
-                        f.write(f"{self.times_ag[k]} snapshot_{k}/subhalo_{h}.coef_mul\n")
-            
+                        f.write(
+                            f"{self.times_ag[k]} snapshot_{k}/subhalo_{h}.coef_mul\n"
+                        )
+
                     if (sorted(integers)[-1] + 1) < self.rs.shape[1]:
-                        f.write(f"{self.times_ag[(sorted(integers)[-1] + 1)]} null.dat\n")
-                    
+                        f.write(
+                            f"{self.times_ag[(sorted(integers)[-1] + 1)]} null.dat\n"
+                        )
+
                     f.write("\n")
 
                 # TODO: Put in fictitious forces.
@@ -571,11 +611,12 @@ class SymphonyInterfacer(Interfacer):
                 # f.write(f"file=acc.dat")
 
                 # Write null potential
-                with open(os.path.join(write_dir, 'null.dat'), 'w') as f:
+                with open(os.path.join(write_dir, "null.dat"), "w") as f:
                     f.write(f"[Potential]\n")
                     f.write(f"type=Plummer\n")
                     f.write(f"mass=0.\n")
                     f.write(f"scaleRadius=10.\n")
+
 
 def is_bound(q, p, subhalo_pos, subhalo_vel, params):
     dq = q - subhalo_pos
