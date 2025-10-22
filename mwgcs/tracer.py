@@ -99,6 +99,10 @@ class GC:
                 m=self.masses,
                 t=self.prog_t,
                 rj=self.rj,
+                # mass loss collected values
+                rlx_dmdt=ml.rlx_dmdt, 
+                sev_dmdt=ml.ev_dmdt,
+                strength=ml.strengths
             )
         
         self.gen_stream_prog(self.prog_dir, scaleRadius)
