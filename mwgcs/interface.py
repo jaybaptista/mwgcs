@@ -64,6 +64,8 @@ class SymphonyInterfacer(Interfacer):
 
         output_prefix = os.path.split(sim_dir)[-1] if output_prefix is None else output_prefix
 
+        self.output_prefix = output_prefix
+
         os.makedirs(output_prefix, exist_ok=True)
 
         self.output_dir = os.path.join(output_prefix, "cluster")
@@ -142,7 +144,7 @@ class SymphonyInterfacer(Interfacer):
                 write_dir=os.path.join(self.output_dir, "particle_tracking.npz")
             )
 
-        #self.generate_clusters(gcsysmf, gcmf, os.path.join(self.output_dir, 'clusters.csv'), True)
+        
     
     def getRedshift(self, snapshot):
         """
@@ -266,7 +268,7 @@ class SymphonyInterfacer(Interfacer):
 
         rows = []
 
-        for i, infall_mass in enumerate(tqdm(infall_masses, desc="Sampling GC masses...")):
+        for i, infall_mass in enumerate(tqdm(infall_masses, desc=f"({self.output_prefix}) Sampling GC masses...")):
             gc_masses = gc_mass_sampler(
                 infall_mass,
                 system_mass_sampler=system_mass_sampler,
@@ -310,7 +312,12 @@ class SymphonyInterfacer(Interfacer):
         df["feh"] = 0.0
         df["a_form"] = 0.0
 
-        for snap in tqdm(np.unique(df["infall_snap"]), desc="Assigning metallicities and ages..."):
+        pb = tqdm(np.unique(df["infall_snap"])) #, desc="Assigning metallicities and ages...")
+
+        for snap in pb:
+
+            
+
             mask = (df["infall_snap"] == snap) & (df["preinfall_host_idx"] == -1)
             
             if not mask.any():
@@ -319,6 +326,7 @@ class SymphonyInterfacer(Interfacer):
             subset = df[mask]
 
             for hid, idxs in subset.groupby("halo_index").groups.items():
+                pb.set_description(f"Assigning particles... (snapshot: {snap}; hid: {hid})")
                 stars, _, _ = symlib.tag_stars(self.sim_dir, self.gal_halo, target_subs=[hid])
                 mp = stars[hid]["mp"]
                 prob = mp / np.sum(mp)
