@@ -354,7 +354,7 @@ class ClusterMass:
                 self.spop = evolved_spop
 
             # Calculate most negative eigenvalue of the tidal tensor
-            lam = tidal_strength(tts[k - 1, :, :])
+            lam = tidal_strength(tts[k - 1, :, :]) * 1.0459401725324529 # multiply to get into the right units (1/Gyr2)
 
             self.strengths[k - 1] = lam
 
