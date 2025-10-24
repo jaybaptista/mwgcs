@@ -13,10 +13,12 @@ from mwgcs import GCS_MASS_EADIE, GCMF_ELVES, GCS_NUMBER_LINEAR, SymphonyInterfa
 
 base_dir = "/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/"
 n_hosts = np.arange(symlib.n_hosts("SymphonyMilkyWay")) # 45 hosts
+output_directory = "/sdf/data/kipac/u/jaymarie/gchords_1022_k100"
+
+os.makedirs(output_directory, exist_ok=True)
 
 parser = argparse.ArgumentParser(description="Run SymphonyMW for a specific host.")
 parser.add_argument("n_halo", type=int, help="Index of the host halo to process")
-parser.add_argument("--kappa", type=float, default=4.0, help="kappa (evaporation strength)")
 args = parser.parse_args()
 
 # Knobs!
@@ -37,7 +39,7 @@ RMIN         = 0.001
 RMAX         = 250
 
 """GC Evolution and Integration"""
-# KAPPA = 100.0
+KAPPA = 100.0
 IMF   = "kroupa"
 
 
@@ -49,11 +51,6 @@ def main():
 
     host_dir = symlib.get_host_directory(base_dir, "SymphonyMilkyWay", args.n_halo)
     host_name = os.path.split(host_dir)[-1]
-
-    output_directory = f"/sdf/data/kipac/u/jaymarie/gchords_kappa_{args.kappa}"
-    os.makedirs(output_directory, exist_ok=True)
-
-
     output = os.path.join(output_directory, host_name)
 
     # Creates clusters 
@@ -90,7 +87,7 @@ def main():
             potential, w0, t0, tf, m0,
             feh=feh,
             npts=np.max([250 * int(np.floor(tf - t0)), 500]), # arbitrary
-            kappa=args.kappa,
+            kappa=KAPPA,
             imf=IMF,
             accuracy=ACCURACY,
             thread_count=THREAD_COUNT,
