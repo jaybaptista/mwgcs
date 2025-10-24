@@ -34,7 +34,7 @@ THREAD_COUNT=32
 LMAX         = 4
 LMAX_SUBHALO = 1
 RMIN         = 0.001
-RMAX         = 250
+RMAX         = 2.0 # This is a multiplier on the virial radius
 
 """GC Evolution and Integration"""
 # KAPPA = 100.0

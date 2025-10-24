@@ -61,11 +61,9 @@ def main():
         gcsysmf=GCS_MASS_FUNCTION,
         output_prefix=output,
         allow_nsc=ALLOW_NSC,
+        freeze=True
         )
-    
-    clusters = pd.read_csv(os.path.join(output, "./cluster/clusters.csv"))
-    tracking = np.load(os.path.join(output, "./cluster/particle_tracking.npz"))
-    
+        
     # Make potentials
 
     potential_path = os.path.join(output, 'potential')
@@ -77,32 +75,6 @@ def main():
         lmax_sub=1,
         verbose=True
     )
-
-    potential = agama.Potential(file=os.path.join(potential_path, 'cosmo_potential.dat'))
-
-    # Run globular cluster evolution
-
-    for i_gc in tqdm(np.arange(len(clusters))):
-
-        infall_snapshot = clusters['infall_snap'][i_gc]
-        m0 = clusters['gc_mass'][i_gc]
-        w0 = tracking['xv'][infall_snapshot, i_gc]
-        t0 = si.times_ag[infall_snapshot]
-        tf = si.times_ag[-1]
-        feh = clusters['feh'][i_gc]
-
-        gc = GC(
-            potential, w0, t0, tf, m0,
-            feh=feh,
-            npts=np.max([250 * int(np.floor(tf - t0)), 500]), # arbitrary
-            kappa=KAPPA,
-            imf=IMF,
-            accuracy=ACCURACY,
-            thread_count=THREAD_COUNT,
-            output_prefix=os.path.join(output, f"gc_{i_gc}"),
-        )
-
-        # gc.stream(10,)
 
 if __name__ == "__main__":
     main()

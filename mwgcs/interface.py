@@ -427,7 +427,7 @@ class SymphonyInterfacer(Interfacer):
             np.savez_compressed(write_dir, xv=tracking_data)
 
     def make_multipole_potential(
-        self, write_dir=None, rmax=250, rmin=0.01, lmax_sub=1, lmax=4, verbose=False
+        self, write_dir=None, rmax=2.0, rmin=0.01, lmax_sub=1, lmax=4, verbose=False
     ):
         write_dir = self.output_dir if write_dir is None else write_dir
 
@@ -501,7 +501,7 @@ class SymphonyInterfacer(Interfacer):
                             symmetry="spherical",
                             lmax=lmax_sub,
                             rmin=rmin,
-                            rmax=rmax,
+                            rmax=rmax * self.rs[h, s]['rvir'],
                             center=h_x,
                         )
 
@@ -547,7 +547,7 @@ class SymphonyInterfacer(Interfacer):
                     symmetry="none",
                     lmax=lmax,
                     rmin=rmin,
-                    rmax=rmax,
+                    rmax=rmax * self.rs[h, s]['rvir'],
                 )
 
                 pot.export(coefficient_write_path)
