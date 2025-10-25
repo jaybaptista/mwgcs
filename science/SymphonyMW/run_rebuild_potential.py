@@ -13,7 +13,7 @@ from mwgcs import GCS_MASS_EADIE, GCMF_ELVES, GCS_NUMBER_LINEAR, SymphonyInterfa
 
 base_dir = "/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/"
 n_hosts = np.arange(symlib.n_hosts("SymphonyMilkyWay")) # 45 hosts
-output_directory = "/sdf/data/kipac/u/jaymarie/gchords_1021_k4"
+output_directory = "/sdf/data/kipac/u/jaymarie/gchords_bfe"
 
 os.makedirs(output_directory, exist_ok=True)
 

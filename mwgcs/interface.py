@@ -436,7 +436,9 @@ class SymphonyInterfacer(Interfacer):
                 f"Potential directory found. To refit basis function expansion, delete the potential direcrtory: {write_dir}"
             )
         else:
-            for s in tqdm(range(self.rs.shape[1])):
+            pb = tqdm(range(self.rs.shape[1]))
+            for s in pb:
+                pb.set_description(f'({self.output_prefix} @ snapshot {s}): Building multipole potential...')
                 s_dir = os.path.join(write_dir, f"snapshot_{s}")
 
                 if not os.path.exists(write_dir):
@@ -492,6 +494,9 @@ class SymphonyInterfacer(Interfacer):
 
                         masses = np.ones(np.sum(ok_part & ok)) * self.mp
 
+                        # this variable name is inaccurate but I'm too lazy to change all instances atm
+                        rvir = rmax * self.rs[h, s]['rvir'] if self.rs[h, s]['rvir'] > 0 else 1.0
+
                         pot = agama.Potential(
                             type="multipole",
                             particles=(
@@ -501,7 +506,7 @@ class SymphonyInterfacer(Interfacer):
                             symmetry="spherical",
                             lmax=lmax_sub,
                             rmin=rmin,
-                            rmax=rmax * self.rs[h, s]['rvir'],
+                            rmax=rvir,
                             center=h_x,
                         )
 
@@ -541,13 +546,23 @@ class SymphonyInterfacer(Interfacer):
                         print("Central halo has no particles at this snapshot.")
                     continue
 
+                rvir = 0
+                # if rockstar fails to find a virial radius, just max radial bin to 1 kpc.
+                if np.sum((np.linalg.norm(x_c, axis=1) < rvir) | (np.linalg.norm(x_c, axis=1) > rmin)) <= 50:
+                    print("Central halo has no particles for viable fit")
+                    continue
+                else:
+                    rvir = rmax * self.rs[h, s]['rvir'] if self.rs[h, s]['rvir'] > 0 else 1.0
+                
+                # print(f'number of points: {np.sum((np.linalg.norm(x_c, axis=1) < rvir) | (np.linalg.norm(x_c, axis=1) > rmin))}; total mass: {np.sum(masses)}')
+                
                 pot = agama.Potential(
                     type="multipole",
                     particles=(x_c, masses),
                     symmetry="none",
                     lmax=lmax,
                     rmin=rmin,
-                    rmax=rmax * self.rs[h, s]['rvir'],
+                    rmax=rvir,
                 )
 
                 pot.export(coefficient_write_path)
