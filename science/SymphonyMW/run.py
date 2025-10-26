@@ -1,4 +1,5 @@
 import symlib
+from colossus.cosmology import cosmology
 import numpy as np
 import os
 import argparse
@@ -53,6 +54,9 @@ def main():
     host_name = os.path.split(host_dir)[-1]
     output = os.path.join(output_directory, host_name)
 
+    col_params = symlib.colossus_parameters(symlib.simulation_parameters(host_dir))
+    cosmo = cosmology.Cosmology(name="", **col_params)
+
     # Creates clusters 
 
     si = SymphonyInterfacer(
@@ -67,6 +71,7 @@ def main():
     tracking = np.load(os.path.join(output, "./cluster/particle_tracking.npz"))
     
     # Make potentials
+
 
     potential_path = os.path.join(output, 'potential')
     si.make_multipole_potential(
@@ -90,10 +95,14 @@ def main():
         t0 = si.times_ag[infall_snapshot]
         tf = si.times_ag[-1]
         feh = clusters['feh'][i_gc]
+        z_form = 1/clusters['a_form'][i_gc] - 1
+        age = cosmo.hubbleTime(z_form)
+
 
         gc = GC(
             potential, w0, t0, tf, m0,
             feh=feh,
+            age=age,
             npts=np.max([250 * int(np.floor(tf - t0)), 500]), # arbitrary
             kappa=KAPPA,
             imf=IMF,
