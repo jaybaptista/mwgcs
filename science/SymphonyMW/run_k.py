@@ -6,6 +6,7 @@ import argparse
 import agama
 import pandas as pd
 from tqdm import tqdm
+import time
 
 agama.setUnits(mass=1.,length=1.,velocity=1.)
 
@@ -51,7 +52,7 @@ def main():
     host_dir = symlib.get_host_directory(base_dir, "SymphonyMilkyWay", args.n_halo)
     host_name = os.path.split(host_dir)[-1]
 
-    output_directory = f"/sdf/data/kipac/u/jaymarie/gchords_kappa_{args.kappa}"
+    output_directory = f"/sdf/data/kipac/u/jaymarie/gchords_kappa_{args.kappa}_n32"
     os.makedirs(output_directory, exist_ok=True)
 
 
@@ -76,9 +77,11 @@ def main():
     
     # Make potentials
     # /sdf/data/kipac/u/jaymarie/gchords_1021_k4/Halo023/potential
-
+    print("Loading potential...")
+    _t0 = time.time()
     potential = agama.Potential(file=os.path.join(f'/sdf/data/kipac/u/jaymarie/gchords_bfe/{host_name}/potential', 'cosmo_potential.dat'))
-
+    _tf = time.time()
+    print(f"Potential loaded in {_tf-_t0} seconds.")
     # Run globular cluster evolution
 
     for i_gc in tqdm(np.arange(len(clusters))):

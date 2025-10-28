@@ -59,6 +59,9 @@ class GC:
         traj_size = self.npts
 
         self.prog_pot = None
+
+        print('Starting GC tracer integration...')
+
         t_start = time.time()
         output = agama.orbit(
             potential=self.host_pot,
