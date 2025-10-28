@@ -155,7 +155,7 @@ class GC:
 
         # Compute Jacobi radius and velocity
         Omega = L / r**2
-        rj = (agama.G * self.prog_w[:N] / (Omega**2 - d2Phi_dr2)) ** (1.0 / 3)
+        rj = (agama.G * self.masses[:N] / (Omega**2 - d2Phi_dr2)) ** (1.0 / 3)
 
         imf = self.ml.spop_init
         # Obtain how much mass lost in a given time bin
