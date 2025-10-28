@@ -77,7 +77,7 @@ def main():
     # Make potentials
     # /sdf/data/kipac/u/jaymarie/gchords_1021_k4/Halo023/potential
 
-    potential = agama.Potential(file=os.path.join(f'/sdf/data/kipac/u/jaymarie/gchords_1021_k4/{host_name}/potential', 'cosmo_potential.dat'))
+    potential = agama.Potential(file=os.path.join(f'/sdf/data/kipac/u/jaymarie/gchords_bfe/{host_name}/potential', 'cosmo_potential.dat'))
 
     # Run globular cluster evolution
 
