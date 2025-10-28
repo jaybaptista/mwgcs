@@ -5,6 +5,7 @@ import agama
 import os
 from tqdm import tqdm 
 from itertools import chain
+import time
 
 agama.setUnits(length=1., mass=1., velocity=1.)
 
@@ -58,7 +59,7 @@ class GC:
         traj_size = self.npts
 
         self.prog_pot = None
-
+        t_start = time.time()
         output = agama.orbit(
             potential=self.host_pot,
             ic=self.w0,
@@ -67,14 +68,14 @@ class GC:
             trajsize=traj_size,
             accuracy=accuracy,
         )
+        t_elapsed = time.time() - t_start
+        print(f"Orbit integration took {t_elapsed:.3f} s")
 
         self.prog_t, self.prog_w = output
 
         dts = np.diff(self.prog_t)
 
         ml = ClusterMass(self.m0, age, self.kappa, self.tf, imf=imf, sev=sev, Z=10**feh)
-
-        
 
         self.tts = []
 
