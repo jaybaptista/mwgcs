@@ -215,7 +215,9 @@ def calculate_tidal_tensor(potential, pos, t=0.0):
     Returns:
         tt : a (3,3) tensor if single pos, or (N,3,3) array if multiple
     """
+    
     pos = np.atleast_2d(pos)  # Ensure pos is (N, 3)
+    
     N = len(pos)
 
     if np.isscalar(t):

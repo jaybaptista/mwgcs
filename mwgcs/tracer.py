@@ -80,7 +80,7 @@ class GC:
 
         if self.masses is None:
             if evolve_mass:
-                tts = calculate_tidal_tensor(self.host_pot, self.prog_w[:, :3])
+                tts = calculate_tidal_tensor(self.host_pot, self.prog_w[:, :3], t=self.prog_t)
                 masses = ml.evolve(age, dts, tts)
                 self.masses = masses
             else:
