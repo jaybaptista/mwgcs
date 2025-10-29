@@ -2,7 +2,7 @@ import numpy as np
 import agama
 from scipy.integrate import quad
 from tqdm import tqdm
-
+import time
 
 agama.setUnits(mass=1.0, length=1.0, velocity=1.0)
 
@@ -302,7 +302,9 @@ class ClusterMass:
         self.m0 = initial_mass
 
         # Sample initial stellar population
+
         spop, lifetimes = sample_ssp(initial_mass, initial_age, imf=imf, Z=Z)
+        
         self.spop_init = np.copy(spop)
         self.spop = np.copy(self.spop_init) # evolved stellar population
         self.mstar = np.sum(spop) # initial ZAMS stellar mass
