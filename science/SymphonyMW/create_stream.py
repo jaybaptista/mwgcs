@@ -6,6 +6,7 @@ import argparse
 import agama
 import pandas as pd
 from tqdm import tqdm
+from glob import glob
 
 agama.setUnits(mass=1., length=1., velocity=1.)
 
@@ -71,6 +72,10 @@ def main():
     potential_path = os.path.join(f"/sdf/data/kipac/u/jaymarie/gchords_bfe/{host_name}/potential", "cosmo_potential.dat")
     potential = agama.Potential(file=potential_path)
 
+    #####
+    files = glob('/sdf/data/kipac/u/jaymarie/gchords_1021_k4/Halo023/gc_*')
+    ####
+
     # Determine which GC indices to run in this chunk
     n_total = len(clusters)
     gc_indices = compute_chunk_indices(n_total, args.chunk, args.nchunks)
@@ -87,36 +92,28 @@ def main():
     # Run only this chunk's clusters
     for i_gc in tqdm(gc_indices, desc=f"{host_name} [chunk {args.chunk}/{args.nchunks}]"):
         infall_snapshot = clusters.loc[i_gc, "infall_snap"]
-        m0   = clusters.loc[i_gc, "gc_mass"]
-        w0   = tracking["xv"][infall_snapshot, i_gc]
         t0   = si.times_ag[infall_snapshot]
         tf   = si.times_ag[-1]
-        feh  = clusters.loc[i_gc, "feh"]
 
-        z_form = 1.0 / clusters.loc[i_gc, "a_form"] - 1.0
-        age    = cosmo.hubbleTime(z_form)
+        gc_file = f'/sdf/data/kipac/u/jaymarie/gchords_1021_k4/Halo023/gc_{i_gc}/gc.npz'
 
-        gc = GC(
-            potential, w0, t0, tf, m0,
-            feh=feh,
-            age=age,
-            npts=max(250 * int(np.floor(tf - t0)), 500),  # arbitrary
-            kappa=0.0,
-            imf="kroupa",
-            accuracy=ACCURACY,
-            thread_count=THREAD_COUNT,
-            output_prefix=os.path.join(output, f"gc_{i_gc}"),
-        )
+        if not os.path.isfile(gc_file):
+            print(f'GC {i_gc} not found... skipping.')
+            continue
+        
+        gc_data = np.load(gc_file)
 
-        sat_potential = agama.Potential(file=f'/sdf/data/kipac/u/jaymarie/gchords_1021_k4/{host_name}/cluster/gc_{i_gc}/prog/progenitor.ini')
+        prog_w = gc_data['track']
+        masses = gc_data['m']
+        prog_t = gc_data['t']
+
+        sat_potential = agama.Potential(file=f'/sdf/data/kipac/u/jaymarie/gchords_1021_k4/{host_name}/gc_{i_gc}/prog/progenitor.ini')
 
         stream = StreamConstantSpray(
-            gc.prog_w, gc.masses, gc.prog_t, potential=potential, sat_potential=sat_potential, stream_path=os.path.join(output, f"gc_{i_gc}/stream.npz"), npts=5000
+            prog_w, masses, prog_t, potential=potential, sat_potential=sat_potential, stream_path=os.path.join(output, f"gc_{i_gc}/stream.npz"), npts=int(np.ceil(tf-t0) * 500)
         )
 
         stream.stream(3, t_final = si.times_ag[-1])
-
-
 
 if __name__ == "__main__":
     main()

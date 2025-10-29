@@ -66,14 +66,15 @@ class GC:
         print("Starting GC tracer integration...")
 
         t_start = time.time()
-        output = agama.orbit(
-            potential=self.host_pot,
-            ic=self.w0,
-            timestart=self.t0,
-            time=self.tf - self.t0,
-            trajsize=traj_size,
-            accuracy=accuracy,
-        )
+        with agama.setNumThreads(self.thread_count):
+            output = agama.orbit(
+                potential=self.host_pot,
+                ic=self.w0,
+                timestart=self.t0,
+                time=self.tf - self.t0,
+                trajsize=traj_size,
+                accuracy=accuracy,
+            )
         t_elapsed = time.time() - t_start
         print(f"Orbit integration took {t_elapsed:.3f} s")
 
@@ -81,9 +82,12 @@ class GC:
 
         dts = np.diff(self.prog_t)
 
+        t_start = time.time()
         ml = ClusterMass(
             self.m0, age, self.kappa, self.tf, imf=imf, sev=sev, Z=10**feh
         )
+        t_elapsed = time.time() - t_start
+        print(f"Stellar evolution took {t_elapsed:.3f} s")
 
         self.tts = []
 
