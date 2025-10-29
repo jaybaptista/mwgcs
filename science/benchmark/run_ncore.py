@@ -1,5 +1,6 @@
 import symlib
 from colossus.cosmology import cosmology
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import argparse
@@ -20,26 +21,6 @@ parser = argparse.ArgumentParser(description="Run SymphonyMW Halo023 for a speci
 parser.add_argument("n_core", type=int, help="Number of cores")
 args = parser.parse_args()
 
-# Knobs!
-
-"""GC–Halo Connection"""
-GC_MASS_FUNCTION  = GCMF_ELVES
-GCS_MASS_FUNCTION = GCS_NUMBER_LINEAR
-ALLOW_NSC         = False
-
-"""Orbit Integration"""
-ACCURACY=1e-12
-
-"""Multipole Approximation"""
-LMAX         = 4
-LMAX_SUBHALO = 1
-RMIN         = 0.001
-RMAX         = 2.0 # This is a multiplier on the virial radius
-
-"""GC Evolution and Integration"""
-# KAPPA = 100.0
-IMF   = "kroupa"
-
 
 
 def main():
@@ -47,50 +28,42 @@ def main():
     host_dir = symlib.get_host_directory(base_dir, "SymphonyMilkyWay", 0)
     host_name = os.path.split(host_dir)[-1]
 
-    output_directory = f"/sdf/data/kipac/u/jaymarie/gchords_bench_{args.n_core}"
-    os.makedirs(output_directory, exist_ok=True)
-
-
-    output = os.path.join(output_directory, host_name)
-
     col_params = symlib.colossus_parameters(symlib.simulation_parameters(host_dir))
     cosmo = cosmology.Cosmology(name="", **col_params)
-
-    clusters = pd.read_csv(os.path.join(f'/sdf/data/kipac/u/jaymarie/gchords_1021_k4/{host_name}/cluster/', "clusters.csv"))
-    tracking = np.load(os.path.join(f'/sdf/data/kipac/u/jaymarie/gchords_1021_k4/{host_name}/cluster', "particle_tracking.npz"))
-    
-    # Make potentials
-    # /sdf/data/kipac/u/jaymarie/gchords_1021_k4/Halo023/potential
     print("Loading potential...")
     _t0 = time.time()
     potential = agama.Potential(file=os.path.join(f'/sdf/data/kipac/u/jaymarie/gchords_bfe/{host_name}/potential', 'cosmo_potential.dat'))
     _tf = time.time()
     print(f"Potential loaded in {_tf-_t0} seconds.")
-    # Run globular cluster evolution
 
-    for i_gc in tqdm(np.arange(len(clusters))):
+    print('Starting GC tracer integration...')
 
-        infall_snapshot = clusters['infall_snap'][i_gc]
-        m0 = clusters['gc_mass'][i_gc]
-        w0 = tracking['xv'][infall_snapshot, i_gc]
-        t0 = 0.
-        tf = 14.
-        feh = clusters['feh'][i_gc]
+    w0 = np.array([2.29060478e+01, -8.91048355e+01, -8.91237717e+01, 3.14766884e+01, -3.31345329e+01, -4.47778625e+01])
 
-        z_form = 1/clusters['a_form'][i_gc] - 1
-        age = cosmo.hubbleTime(z_form)
+    with agama.setNumThreads(args.n_core):
 
-        gc = GC(
-            potential, w0, t0, tf, m0,
-            feh=feh,
-            age=age,
-            npts=np.max([250 * int(np.floor(tf - t0)), 500]), # arbitrary
-            kappa=4,
-            imf=IMF,
-            accuracy=ACCURACY,
-            thread_count=args.n_core,
-            output_prefix=os.path.join(output, f"gc_{i_gc}"),
+        t_start = time.time()
+        output = agama.orbit(
+            potential=potential,
+            ic=w0,
+            timestart=0,
+            time=14,
+            trajsize=6,
+            accuracy=1e-12,
         )
+        t_elapsed = time.time() - t_start
+        print(f"Orbit integration took {t_elapsed:.3f} s")
+
+    t, xv = output
+    r = np.linalg.norm(xv[:, :3], axis=1)
+    fig, ax = plt.subplots(dpi=200, figsize=(4,4))
+    ax.plot(t, r, c='k')
+    ax.set_xlabel(r'$t\ \mathrm{(Gyr)}$')
+    ax.set_ylabel(r'$r\ \mathrm{(kpc)}$')
+    plt.savefig(f'~/trajectory_{args.n_core}.png')
+    plt.close()
+
+
 
 if __name__ == "__main__":
     main()
