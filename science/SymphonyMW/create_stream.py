@@ -101,7 +101,7 @@ def main():
             feh=feh,
             age=age,
             npts=max(250 * int(np.floor(tf - t0)), 500),  # arbitrary
-            kappa=args.kappa,
+            kappa=0.0,
             imf="kroupa",
             accuracy=ACCURACY,
             thread_count=THREAD_COUNT,
@@ -114,7 +114,7 @@ def main():
             gc.prog_w, gc.masses, gc.prog_t, potential=potential, sat_potential=sat_potential, stream_path=os.path.join(output, f"gc_{i_gc}/stream.npz"), npts=5000
         )
 
-        stream.stream(10, t_final = si.times_ag[-1])
+        stream.stream(3, t_final = si.times_ag[-1])
 
 
 
