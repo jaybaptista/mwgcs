@@ -48,7 +48,7 @@ def main():
             ic=w0,
             timestart=0,
             time=14,
-            trajsize=6,
+            trajsize=1,
             accuracy=1e-12,
         )
         t_elapsed = time.time() - t_start
