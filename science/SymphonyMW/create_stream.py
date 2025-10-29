@@ -110,7 +110,7 @@ def main():
         sat_potential = agama.Potential(file=f'/sdf/data/kipac/u/jaymarie/gchords_1021_k4/{host_name}/gc_{i_gc}/prog/progenitor.ini')
 
         stream = StreamConstantSpray(
-            prog_w, masses, prog_t, potential=potential, sat_potential=sat_potential, stream_path=os.path.join(output, f"gc_{i_gc}/stream.npz"), npts=int(np.ceil(tf-t0) * 500)
+            prog_w, masses, prog_t, potential=potential, sat_phi=sat_potential, stream_path=os.path.join(output, f"gc_{i_gc}/stream.npz"), npts=int(np.ceil(tf-t0) * 500)
         )
 
         stream.stream(3, t_final = si.times_ag[-1])
