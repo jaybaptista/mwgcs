@@ -23,7 +23,7 @@ args = parser.parse_args()
 
 # Orbit Integration
 ACCURACY     = 1e-12
-THREAD_COUNT = 32
+THREAD_COUNT = 64
 
 def compute_chunk_indices(n_total: int, chunk: int, nchunks: int) -> np.ndarray:
     """Return the global indices of elements belonging to `chunk` when splitting n_total into nchunks."""
@@ -109,11 +109,14 @@ def main():
 
         sat_potential = agama.Potential(file=f'/sdf/data/kipac/u/jaymarie/gchords_1021_k4/{host_name}/gc_{i_gc}/prog/progenitor.ini')
 
+        gc_output_dir = os.path.join(output, f"gc_{i_gc}")
+        os.makedirs(gc_output_dir, exist_ok=True)
+
         stream = StreamConstantSpray(
             prog_w, masses, prog_t, potential=potential, sat_phi=sat_potential, stream_path=os.path.join(output, f"gc_{i_gc}/stream.npz"), npts=int(np.ceil(tf-t0) * 500)
         )
 
-        stream.stream(3, t_final = si.times_ag[-1])
+        stream.stream(1, t_final = si.times_ag[-1])
 
 if __name__ == "__main__":
     main()
