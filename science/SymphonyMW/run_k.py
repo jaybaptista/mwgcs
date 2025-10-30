@@ -96,17 +96,24 @@ def main():
         z_form = 1/clusters['a_form'][i_gc] - 1
         age = cosmo.hubbleTime(z_form)
 
-        gc = GC(
-            potential, w0, t0, tf, m0,
-            feh=feh,
-            age=age,
-            npts=np.max([250 * int(np.floor(tf - t0)), 500]), # arbitrary
-            kappa=args.kappa,
-            imf=IMF,
-            accuracy=ACCURACY,
-            thread_count=THREAD_COUNT,
-            output_prefix=os.path.join(output, f"gc_{i_gc}"),
-        )
+        # Checks
+        gc_file_path = os.path.join(output, f"gc_{i_gc}")
+        if os.path.isfile(os.path.join(gc_file_path, "gc.npz")):
+            print(f"gc {i_gc} already processed; skipping.")
+            continue
+        else:
+
+            gc = GC(
+                potential, w0, t0, tf, m0,
+                feh=feh,
+                age=age,
+                npts=np.max([250 * int(np.floor(tf - t0)), 500]), # arbitrary
+                kappa=args.kappa,
+                imf=IMF,
+                accuracy=ACCURACY,
+                thread_count=THREAD_COUNT,
+                output_prefix=gc_file_path,
+            )
 
 if __name__ == "__main__":
     main()
