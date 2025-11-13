@@ -57,8 +57,20 @@ def GCS_MASS_EADIE(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
 
     return 10**system_mass
 
-def GCS_NUMBER_LINEAR(halo_mass):
-    eta_N = 10**(-8.56 - 0.11 * np.log10(halo_mass))
+def GCS_NUMBER_LINEAR(halo_mass, use_scatter=False):
+
+    log_eta = (-8.56 - 0.11 * np.log10(halo_mass))
+    
+    scatter_dex = 0.26 
+
+    # sample centered at log_eta and dex
+
+    if use_scatter:
+        log_eta_sampled = np.random.normal(loc=log_eta, scale=scatter_dex)
+        eta_N = 10**log_eta_sampled
+    else:
+        eta_N = 10**log_eta
+
     return eta_N * halo_mass
 
 def KGSampler(halo_mass):
