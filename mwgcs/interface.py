@@ -9,11 +9,11 @@ import symlib
 from colossus.cosmology import cosmology
 
 from .sampler import GCMF_ELVES, GCS_MASS_EADIE
+from .um import UniverseMachineMStarFit
 
 import agama
 
 agama.setUnits(length=1, velocity=1, mass=1)
-
 
 class Interfacer(abc.ABC):
     def __init__(self, snapshots, times, scale_factors, **kwargs):
@@ -58,6 +58,7 @@ class SymphonyInterfacer(Interfacer):
         """
 
         freeze = kwargs.get("freeze", False)
+        mstar_fit = kwargs.get("mstar_fit", False)
 
         self.sim_dir = sim_dir
 
@@ -95,15 +96,28 @@ class SymphonyInterfacer(Interfacer):
 
         # Obtain catalog outputs
         self.rs, self.hist = symlib.read_rockstar(self.sim_dir)
-        self.sf, _ = symlib.read_symfind(self.sim_dir)
-        self.um = symlib.read_um(self.sim_dir)
         self.part = symlib.Particles(self.sim_dir)
+
+        
 
         # Define subhalo infall characteristics
         halo_id = np.arange(0, self.rs.shape[0], dtype=int)
+        
         infall_snaps = self.hist["first_infall_snap"]
-        infall_mass = self.um["m_star"][halo_id, infall_snaps]
         infall_halo_mass = self.rs["m"][halo_id, infall_snaps]
+        infall_z = 1/scale_factors[infall_snaps] - 1
+
+        # Obtain stellar masses either from pre-run UniverseMachine outputs
+        # or based on a fit for stellar mass.
+        if not mstar_fit:
+            self.um = symlib.read_um(self.sim_dir)
+            infall_mass = self.um["m_star"][halo_id, infall_snaps]
+        else:
+            mpeaks = self.hist['mpeak']
+            fit = UniverseMachineMStarFit()
+            infall_mass = np.array([
+                fit.m_star(mp_i, z_i)
+                for mp_i, z_i in zip(mpeaks, infall_z)])
 
         # Get snapshot of subhalo disruption.
         ok = self.rs["ok"]
@@ -482,7 +496,7 @@ class SymphonyInterfacer(Interfacer):
                     )
 
                     # Arbitrary particle cut to ensure a good fit
-                    particle_cut = np.sum(ok) > 40
+                    particle_cut = np.sum(ok) > 100
 
                     if intact and particle_cut:
                         # Load unbound particles into the central halo
