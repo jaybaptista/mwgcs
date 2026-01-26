@@ -59,6 +59,7 @@ class SymphonyInterfacer(Interfacer):
 
         freeze = kwargs.get("freeze", False)
         mstar_fit = kwargs.get("mstar_fit", False)
+        nsnaps = kwargs.get("nsnaps", 236)
 
         self.sim_dir = sim_dir
 
@@ -77,7 +78,7 @@ class SymphonyInterfacer(Interfacer):
             os.mkdir(self.output_dir)
 
         # Symphony simulation parameters
-        snapshots = np.arange(0, 236, dtype=int)
+        snapshots = np.arange(0, nsnaps, dtype=int)
         scale_factors = np.array(symlib.scale_factors(sim_dir))
         self.params = symlib.simulation_parameters(sim_dir)
         self.mp = self.params["mp"] / self.params["h100"]
@@ -131,7 +132,7 @@ class SymphonyInterfacer(Interfacer):
         disrupt_snap = np.where(
             has_true, last_true_idx + 1, -1
         )  # Only keep valid rows, others set to -1
-        disrupt_snap[disrupt_snap == 236] = -1
+        disrupt_snap[disrupt_snap == nsnaps] = -1
 
         self.infall_snaps = infall_snaps
         self.infall_mass = infall_mass
