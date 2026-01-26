@@ -152,7 +152,6 @@ class SymphonyInterfacer(Interfacer):
             symlib.MetalModel(
                 symlib.Kirby2013Metallicity(),
                 symlib.Kirby2013MDF(model_type="gaussian"),
-                symlib.FlatFeHProfile(),
                 symlib.GaussianCoupalaCorrelation(),
             ),
         )
