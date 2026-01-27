@@ -143,18 +143,7 @@ class SymphonyInterfacer(Interfacer):
         self.preinfall_host_idx = symlib.pre_infall_host(self.hist)
 
         # Get the galaxy halo model for star tagging process.
-        self.gal_halo = symlib.GalaxyHaloModel(
-            symlib.StellarMassModel(
-                symlib.UniverseMachineMStar(),
-                symlib.DarkMatterSFH(),  # swapped this one out
-            ),
-            symlib.ProfileModel(symlib.Jiang2019RHalf(), symlib.PlummerProfile()),
-            symlib.MetalModel(
-                symlib.Kirby2013Metallicity(),
-                symlib.Kirby2013MDF(model_type="gaussian"),
-                symlib.GaussianCoupalaCorrelation(),
-            ),
-        )
+        self.gal_halo = symlib.DWARF_GALAXY_HALO_MODEL_NO_UM
 
         if not freeze:
             self.generate_clusters(
