@@ -6,7 +6,6 @@ import time
 
 agama.setUnits(mass=1.0, length=1.0, velocity=1.0)
 
-
 def evolve_stellar_mass(initial_mass, lifetimes, tf):
     """
     Function takes in an array of ZAMS masses [Msun] and main sequence lifetimes [Gyr]
@@ -167,7 +166,7 @@ def sample_kroupa_imf(N, A=norm_A):
     return np.array(samples[:N])
 
 
-def sample_ssp(total_mass, age, m_min=0.01, m_max=100, alpha=2.35, Z=0.01, imf=None):
+def sample_ssp(total_mass, age, m_min=0.65, m_max=100, alpha=2.35, Z=0.01, imf=None):
     """
     Minimum mass cutoff is 0.394/(1 - 0.394)
     This is so remnant mass of the red dwarf matches the end mass of the
@@ -316,6 +315,9 @@ class ClusterMass:
         # Estimate lifetimes of the stellar population
         self.lifetimes = lifetimes
 
+        self.disrupted = False
+        self.t_disrupt = -999
+
     def evolve(self, t0, dts, tts):
         """
         A routine that evolves the mass of the cluster. All units of time are in
@@ -375,6 +377,8 @@ class ClusterMass:
 
             if m_fin <= 0 or np.isnan(m_fin):
                 print(f"Cluster has disrupted at t={t[k-1]}")
+                self.disrupted = True
+                self.t_disrupt = t[k-1]
                 break
 
             masses[k] = m_fin
