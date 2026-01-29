@@ -11,9 +11,12 @@ from colossus.cosmology import cosmology
 from .sampler import GCMF_ELVES, GCS_MASS_EADIE
 from .um import UniverseMachineMStarFit
 
+from .startag import expand, tag_energy_cut, energy
+
 import agama
 
 agama.setUnits(length=1, velocity=1, mass=1)
+
 
 class Interfacer(abc.ABC):
     def __init__(self, snapshots, times, scale_factors, **kwargs):
@@ -87,8 +90,7 @@ class SymphonyInterfacer(Interfacer):
         self.cosmo = cosmology.setCosmology("cosmo", params=self.col_params)
         self.z = (1 / scale_factors) - 1
 
-        # Get Hubble times in Gyr
-        times = self.cosmo.hubbleTime(self.z)
+        times = self.cosmo.age(self.z)
 
         super().__init__(snapshots, times, scale_factors)
 
@@ -99,14 +101,12 @@ class SymphonyInterfacer(Interfacer):
         self.rs, self.hist = symlib.read_rockstar(self.sim_dir)
         self.part = symlib.Particles(self.sim_dir)
 
-        
-
         # Define subhalo infall characteristics
         halo_id = np.arange(0, self.rs.shape[0], dtype=int)
-        
+
         infall_snaps = self.hist["first_infall_snap"]
         infall_halo_mass = self.rs["m"][halo_id, infall_snaps]
-        infall_z = 1/scale_factors[infall_snaps] - 1
+        infall_z = 1 / scale_factors[infall_snaps] - 1
 
         # Obtain stellar masses either from pre-run UniverseMachine outputs
         # or based on a fit for stellar mass.
@@ -114,11 +114,11 @@ class SymphonyInterfacer(Interfacer):
             self.um = symlib.read_um(self.sim_dir)
             infall_mass = self.um["m_star"][halo_id, infall_snaps]
         else:
-            mpeaks = self.hist['mpeak']
+            mpeaks = self.hist["mpeak"]
             fit = UniverseMachineMStarFit()
-            infall_mass = np.array([
-                fit.m_star(mp_i, z_i)
-                for mp_i, z_i in zip(mpeaks, infall_z)])
+            infall_mass = np.array(
+                [fit.m_star(mp_i, z_i) for mp_i, z_i in zip(mpeaks, infall_z)]
+            )
 
         # Get snapshot of subhalo disruption.
         ok = self.rs["ok"]
@@ -353,17 +353,172 @@ class SymphonyInterfacer(Interfacer):
                 prob = mp / np.sum(mp)
 
                 for k in idxs:
-                    
-                    particle_tag_index = 0 # by default
+                    particle_tag_index = 0  # by default
 
                     if np.sum(mp) > 0.0:
-                        particle_tag_index = rng.choice(np.arange(len(prob)), size=1, replace=False, p=prob)[0]
-                        
+                        particle_tag_index = rng.choice(
+                            np.arange(len(prob)), size=1, replace=False, p=prob
+                        )[0]
+
                     df.at[k, "nimbus_index"] = int(particle_tag_index)
                     df.at[k, "feh"] = float(stars[hid][particle_tag_index]["Fe_H"])
                     df.at[k, "a_form"] = float(stars[hid][particle_tag_index]["a_form"])
-                    
 
+        # Ensure consistent dtypes
+        df = df.astype(
+            {
+                "halo_index": "int64",
+                "infall_snap": "int64",
+                "disrupt_snap": "int64",
+                "preinfall_host_idx": "int64",
+                "nimbus_index": "int64",
+                "gc_mass": "float64",
+                "feh": "float64",
+                "a_form": "float64",
+            },
+            errors="ignore",
+        )
+
+        dir_name = os.path.dirname(write_path)
+        if dir_name != "":
+            os.makedirs(dir_name, exist_ok=True)
+        df.to_csv(write_path, index=False)
+
+        self.particle_tags = df
+        return df
+
+    def generate_clusters_no_nb(
+        self,
+        system_mass_sampler,
+        gc_mass_sampler,
+        write_path,
+        allow_nsc=False,
+        rng=None,
+    ):
+        """
+        Generates clusters for simulations without Nimbus outputs
+        """
+
+        rng = np.random.default_rng() if rng is None else rng
+
+        if os.path.exists(write_path):
+            print("Cluster system exists. Loading from memory.")
+            df = pd.read_csv(write_path)
+            self.particle_tags = df
+            return df
+
+        # Only mask subhalos that infall onto the central halo
+        _mask = (self.infall_snaps != -1) & (self.preinfall_host_idx == -1)
+
+        halo_indices = np.arange(len(self.infall_snaps))[_mask]
+        infall_masses = self.infall_mass[_mask]
+        infall_snaps = self.infall_snaps[_mask]
+        disrupt_snaps = self.disrupt_snaps[_mask]
+        infall_halo_mass = self.infall_halo_mass[_mask]
+        preinfall_host_idx = self.preinfall_host_idx[_mask]
+
+        rows = []
+
+        for i, infall_mass in enumerate(
+            tqdm(infall_masses, desc=f"({self.output_prefix}) Sampling GC masses...")
+        ):
+            gc_masses = gc_mass_sampler(
+                infall_mass,
+                system_mass_sampler=system_mass_sampler,
+                halo_mass=infall_halo_mass[i],
+                allow_nsc=allow_nsc,
+            )
+
+            if gc_masses is None:
+                continue
+
+            # Also skip if sampler returned an empty list/array
+            if hasattr(gc_masses, "__len__") and len(gc_masses) == 0:
+                continue
+
+            gc_masses = np.asarray(gc_masses, dtype="float")
+
+            if gc_masses.size == 0:
+                continue
+
+            rows.append(
+                pd.DataFrame(
+                    {
+                        "halo_index": np.repeat(halo_indices[i], gc_masses.size),
+                        "infall_snap": np.repeat(infall_snaps[i], gc_masses.size),
+                        "disrupt_snap": np.repeat(disrupt_snaps[i], gc_masses.size),
+                        "gc_mass": gc_masses,
+                        "preinfall_host_idx": np.repeat(
+                            preinfall_host_idx[i], gc_masses.size
+                        ),
+                    }
+                )
+            )
+
+        if not rows:
+            # Empty case
+            df = pd.DataFrame(
+                columns=[
+                    "halo_index",
+                    "infall_snap",
+                    "disrupt_snap",
+                    "gc_mass",
+                    "preinfall_host_idx",
+                    "nimbus_index",
+                    "feh",
+                    "a_form",
+                ]
+            )
+            df.to_csv(write_path, index=False)
+            self.particle_tags = df
+            return df
+
+        df = pd.concat(rows, ignore_index=True)
+
+        df["nimbus_index"] = -1
+        df["feh"] = -1.5  # median metallicity?
+        df["a_form"] = 0.208  # roughly redshift of 3.8 or lookback of 12 Gyr
+
+        pb = tqdm(np.unique(df["infall_snap"]))
+
+        r50_model = symlib.Jiang2019RHalf(scatter=0.2)
+
+        for snap in pb:
+            mask = (df["infall_snap"] == snap) & (df["preinfall_host_idx"] == -1)
+
+            if not mask.any():
+                continue
+
+            subset = df[mask]
+
+            for hid, idxs in subset.groupby("halo_index").groups.items():
+                pb.set_description(
+                    f"Assigning particles... (snapshot: {snap}; hid: {hid})"
+                )
+
+                pi = self.part.read(snap, halo=hid)
+                ok = pi["ok"]
+                Ei = expand(energy(self.params, pi[ok]), ok)
+
+                r50_target = r50_model.r_half(
+                    rvir=self.rs["rvir"][hid, snap],
+                    cvir=self.rs["cvir"][hid, snap],
+                    z=self.z[snap],
+                )
+
+                mp = expand(tag_energy_cut(pi[ok], Ei[ok], r50_target), ok)
+                mp[np.isnan(mp)] = 0.0
+                prob = mp / np.sum(mp)
+
+                for k in idxs:
+                    particle_tag_index = 0  # by default
+
+                    if np.sum(mp) > 0.0:
+                        particle_tag_index = rng.choice(
+                            np.arange(len(prob)), size=1, replace=False, p=prob
+                        )[0]
+
+                    df.at[k, "nimbus_index"] = int(particle_tag_index)
         # Ensure consistent dtypes
         df = df.astype(
             {
@@ -441,7 +596,9 @@ class SymphonyInterfacer(Interfacer):
         else:
             pb = tqdm(range(self.rs.shape[1]))
             for s in pb:
-                pb.set_description(f'({self.output_prefix} @ snapshot {s}): Building multipole potential...')
+                pb.set_description(
+                    f"({self.output_prefix} @ snapshot {s}): Building multipole potential..."
+                )
                 s_dir = os.path.join(write_dir, f"snapshot_{s}")
 
                 if not os.path.exists(write_dir):
@@ -498,7 +655,11 @@ class SymphonyInterfacer(Interfacer):
                         masses = np.ones(np.sum(ok_part & ok)) * self.mp
 
                         # this variable name is inaccurate but I'm too lazy to change all instances atm
-                        rvir = rmax * self.rs[h, s]['rvir'] if self.rs[h, s]['rvir'] > 0 else 1.0
+                        rvir = (
+                            rmax * self.rs[h, s]["rvir"]
+                            if self.rs[h, s]["rvir"] > 0
+                            else 1.0
+                        )
 
                         pot = agama.Potential(
                             type="multipole",
@@ -551,14 +712,24 @@ class SymphonyInterfacer(Interfacer):
 
                 rvir = 0
                 # if rockstar fails to find a virial radius, just max radial bin to 1 kpc.
-                if np.sum((np.linalg.norm(x_c, axis=1) < rvir) | (np.linalg.norm(x_c, axis=1) > rmin)) <= 50:
+                if (
+                    np.sum(
+                        (np.linalg.norm(x_c, axis=1) < rvir)
+                        | (np.linalg.norm(x_c, axis=1) > rmin)
+                    )
+                    <= 50
+                ):
                     print("Central halo has no particles for viable fit")
                     continue
                 else:
-                    rvir = rmax * self.rs[h, s]['rvir'] if self.rs[h, s]['rvir'] > 0 else 1.0
-                
+                    rvir = (
+                        rmax * self.rs[h, s]["rvir"]
+                        if self.rs[h, s]["rvir"] > 0
+                        else 1.0
+                    )
+
                 # print(f'number of points: {np.sum((np.linalg.norm(x_c, axis=1) < rvir) | (np.linalg.norm(x_c, axis=1) > rmin))}; total mass: {np.sum(masses)}')
-                
+
                 pot = agama.Potential(
                     type="multipole",
                     particles=(x_c, masses),
