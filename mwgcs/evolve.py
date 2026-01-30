@@ -259,10 +259,10 @@ def tidal_strength(tt):
     """
     if tt.ndim == 3:
         
-        # tt has shape (3, 3, N) -> move the third axis to the front
-        # so we get an array of shape (N, 3, 3) for vectorized eigval computation
-        
-        tt = np.moveaxis(tt, -1, 0)
+        # If tt has shape (3, 3, N), move the third axis to the front (N, 3, 3).
+        # If tt already has shape (N, 3, 3), do nothing.
+        if tt.shape[0] == 3 and tt.shape[1] == 3:
+            tt = np.moveaxis(tt, -1, 0)
         eigenvalues = np.linalg.eigvals(tt)  # shape (N, 3)
 
         if eigenvalues.shape[0] == 1:
