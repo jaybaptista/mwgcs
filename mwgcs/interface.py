@@ -350,19 +350,21 @@ class SymphonyInterfacer(Interfacer):
                     self.sim_dir, self.gal_halo, target_subs=[hid]
                 )
                 mp = stars[hid]["mp"]
-                prob = mp / np.sum(mp)
 
-                for k in idxs:
+                n_draw = len(idxs)
+
+                if np.sum(mp) <= 0.0:
+                    particle_tag_index = np.zeros(n_draw, dtype=int)
+                else:
+                    prob = mp / np.sum(mp)
                     particle_tag_index = 0  # by default
 
-                    if np.sum(mp) > 0.0:
-                        particle_tag_index = rng.choice(
-                            np.arange(len(prob)), size=1, replace=False, p=prob
-                        )[0]
-
-                    df.at[k, "nimbus_index"] = int(particle_tag_index)
-                    df.at[k, "feh"] = float(stars[hid][particle_tag_index]["Fe_H"])
-                    df.at[k, "a_form"] = float(stars[hid][particle_tag_index]["a_form"])
+                    if np.count_nonzero(prob > 0) >= n_draw:
+                        particle_tag_index = rng.choice(len(prob), size=n_draw, replace=False, p=prob)
+                    else:
+                        raise ValueError('insufficient star particles for tagging')
+                    
+                    df.at[idxs, "nimbus_index"] = particle_tag_index.astype(int)
 
         # Ensure consistent dtypes
         df = df.astype(
@@ -508,17 +510,21 @@ class SymphonyInterfacer(Interfacer):
 
                 mp = expand(tag_energy_cut(pi[ok], Ei[ok], r50_target), ok)
                 mp[np.isnan(mp)] = 0.0
-                prob = mp / np.sum(mp)
+            
+                n_draw = len(idxs)
 
-                for k in idxs:
+                if np.sum(mp) <= 0.0:
+                    particle_tag_index = np.zeros(n_draw, dtype=int)
+                else:
+                    prob = mp / np.sum(mp)
                     particle_tag_index = 0  # by default
 
-                    if np.sum(mp) > 0.0:
-                        particle_tag_index = rng.choice(
-                            np.arange(len(prob)), size=1, replace=False, p=prob
-                        )[0]
-
-                    df.at[k, "nimbus_index"] = int(particle_tag_index)
+                    if np.count_nonzero(prob > 0) >= n_draw:
+                        particle_tag_index = rng.choice(len(prob), size=n_draw, replace=False, p=prob)
+                    else:
+                        raise ValueError('insufficient star particles for tagging')
+                    
+                    df.at[idxs, "nimbus_index"] = particle_tag_index.astype(int)
         # Ensure consistent dtypes
         df = df.astype(
             {
