@@ -364,7 +364,7 @@ class SymphonyInterfacer(Interfacer):
                     else:
                         raise ValueError('insufficient star particles for tagging')
                     
-                    df.at[idxs, "nimbus_index"] = particle_tag_index.astype(int)
+                    df.loc[idxs, "nimbus_index"] = particle_tag_index.astype(int)
 
         # Ensure consistent dtypes
         df = df.astype(
@@ -524,7 +524,7 @@ class SymphonyInterfacer(Interfacer):
                     else:
                         raise ValueError('insufficient star particles for tagging')
                     
-                    df.at[idxs, "nimbus_index"] = particle_tag_index.astype(int)
+                    df.loc[idxs, "nimbus_index"] = particle_tag_index.astype(int)
         # Ensure consistent dtypes
         df = df.astype(
             {
