@@ -3,6 +3,7 @@ from .interface import *
 from .sampler import *
 from .evolve import *
 from .tracer import *
+from .startag import *
 
 import pyximport
 
