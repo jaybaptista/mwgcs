@@ -11,7 +11,7 @@ from colossus.cosmology import cosmology
 from .sampler import GCMF_ELVES, GCS_MASS_EADIE
 from .um import UniverseMachineMStarFit
 
-from .startag import expand, tag_energy_cut, energy
+from .startag import expand, tag_energy_cut, energy, center
 
 import agama
 
@@ -499,6 +499,7 @@ class SymphonyInterfacer(Interfacer):
                 )
 
                 pi = self.part.read(snap, halo=hid)
+                pi = center(pi, self.rs[hid, snap])
                 ok = pi["ok"]
                 Ei = expand(energy(self.params, pi[ok]), ok)
 
