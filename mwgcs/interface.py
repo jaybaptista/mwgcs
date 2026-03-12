@@ -248,11 +248,11 @@ class SymphonyInterfacer(Interfacer):
             np.savez_compressed(write_dir, data)
 
     def generate_clusters(
-        self, system_mass_sampler, gc_mass_sampler, write_path, allow_nsc=True, rng=None
+        self, system_mass_sampler, gc_mass_sampler, write_path, allow_nsc=True, rng=None, force=False
     ):
         rng = np.random.default_rng() if rng is None else rng
 
-        if os.path.exists(write_path):
+        if os.path.exists(write_path) and not force:
             print("Cluster system exists. Loading from memory.")
             df = pd.read_csv(write_path)
             self.particle_tags = df
@@ -396,6 +396,7 @@ class SymphonyInterfacer(Interfacer):
         write_path,
         allow_nsc=False,
         rng=None,
+        force=False
     ):
         """
         Generates clusters for simulations without Nimbus outputs
@@ -403,7 +404,7 @@ class SymphonyInterfacer(Interfacer):
 
         rng = np.random.default_rng() if rng is None else rng
 
-        if os.path.exists(write_path):
+        if os.path.exists(write_path) and not force:
             print("Cluster system exists. Loading from memory.")
             df = pd.read_csv(write_path)
             self.particle_tags = df
