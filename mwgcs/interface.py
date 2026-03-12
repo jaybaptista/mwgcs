@@ -443,7 +443,7 @@ class SymphonyInterfacer(Interfacer):
             # is 4e5 Msun, so a threshold of 25 particles corresponds to ~1e7 Msun — well below
             # Eridanus II (~1e8 Msun), so this cut shouldn't exclude any physically relevant halos.
             pi = self.part.read(infall_snaps[i], halo=halo_indices[i])
-            if len(pi) < 25:
+            if len(pi) < 100:
                 continue
 
             gc_masses = np.asarray(gc_masses, dtype="float")
