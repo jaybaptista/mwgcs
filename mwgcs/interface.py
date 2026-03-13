@@ -439,11 +439,13 @@ class SymphonyInterfacer(Interfacer):
             if hasattr(gc_masses, "__len__") and len(gc_masses) == 0:
                 continue
 
-            # NOTE: Skip halos with too few particles at infall. The particle mass in Symphony
-            # is 4e5 Msun, so a threshold of 25 particles corresponds to ~1e7 Msun — well below
-            # Eridanus II (~1e8 Msun), so this cut shouldn't exclude any physically relevant halos.
+            # NOTE: Skip halos with too few star-tagged particles at infall.
+            # The particle mass in Symphony is 4e5 Msun, so a threshold of 100
+            # particles corresponds to ~4e7 Msun — well below Eridanus II
+            # (~1e8 Msun), so this cut shouldn't exclude any physically
+            # relevant halos.
             pi = self.part.read(infall_snaps[i], halo=halo_indices[i])
-            if len(pi) < 100:
+            if np.sum(pi["ok"]) < 100:
                 continue
 
             gc_masses = np.asarray(gc_masses, dtype="float")
