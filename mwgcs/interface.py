@@ -302,6 +302,7 @@ class SymphonyInterfacer(Interfacer):
                         "preinfall_host_idx": np.repeat(
                             preinfall_host_idx[i], gc_masses.size
                         ),
+                        "infall_host_mstar": np.repeat(infall_mass[i], gc_masses.size),
                     }
                 )
             )
@@ -318,6 +319,7 @@ class SymphonyInterfacer(Interfacer):
                     "nimbus_index",
                     "feh",
                     "a_form",
+                    "infall_host_mstar",
                 ]
             )
             df.to_csv(write_path, index=False)
@@ -463,6 +465,7 @@ class SymphonyInterfacer(Interfacer):
                         "preinfall_host_idx": np.repeat(
                             preinfall_host_idx[i], gc_masses.size
                         ),
+                        "infall_host_mstar": np.repeat(infall_mass[i], gc_masses.size),
                     }
                 )
             )
@@ -479,6 +482,7 @@ class SymphonyInterfacer(Interfacer):
                     "nimbus_index",
                     "feh",
                     "a_form",
+                    "infall_host_mstar",
                 ]
             )
             df.to_csv(write_path, index=False)
@@ -547,6 +551,7 @@ class SymphonyInterfacer(Interfacer):
                 "gc_mass": "float64",
                 "feh": "float64",
                 "a_form": "float64",
+                "infall_host_mstar": "float64",
             },
             errors="ignore",
         )
