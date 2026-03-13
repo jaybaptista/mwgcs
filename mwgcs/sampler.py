@@ -34,13 +34,20 @@ def GCS_MASS_LINEAR(stellar_mass, g0=-0.725, g1=0.788):
     """
     return 10 ** (g0 + g1 * np.log10(stellar_mass))
 
-def GCS_MASS_HARRIS(halo_mass, g0=-0.725, g1=0.788):
+def GCS_MASS_HARRIS(halo_mass, g0=-0.725, g1=0.788, scatter=0.):
     """
     Implementation of the Harris halo mass–GCS mass relation from
     Harris, Blakeslee, & Harris (2017) paper.
     """
     eta = 2.9e-5
-    return eta * halo_mass
+    mhalo = eta * halo_mass
+
+    if scatter > 0:
+        log_mhalo = np.log10(mhalo)
+        log_mhalo_scattered = np.random.normal(loc=log_mhalo, scale=scatter)
+        mhalo = 10 ** log_mhalo_scattered
+
+    return mhalo
 
 
 def GCS_MASS_EADIE(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
