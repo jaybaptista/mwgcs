@@ -302,7 +302,7 @@ class SymphonyInterfacer(Interfacer):
                         "preinfall_host_idx": np.repeat(
                             preinfall_host_idx[i], gc_masses.size
                         ),
-                        "infall_host_mstar": np.repeat(infall_mass[i], gc_masses.size),
+                        "infall_host_mstar": np.repeat(infall_mass, gc_masses.size),
                     }
                 )
             )
@@ -463,7 +463,7 @@ class SymphonyInterfacer(Interfacer):
                         "preinfall_host_idx": np.repeat(
                             preinfall_host_idx[i], gc_masses.size
                         ),
-                        "infall_host_mstar": np.repeat(infall_mass[i], gc_masses.size),
+                        "infall_host_mstar": np.repeat(infall_mass, gc_masses.size),
                     }
                 )
             )
