@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.integrate import quad
-from scipy.stats import uniform
+from scipy.stats import log, uniform
 from scipy.interpolate import interp1d
 
 from itertools import chain
@@ -270,6 +270,7 @@ def GCMF_GEORGIEV(
     halo_mass=1e12,
     allow_nsc=True,
     p_gc=False,
+    scatter=0.0,
 ):
     """
     Taken from Georgiev+2009 sample for the dSph luminosity functions
@@ -290,7 +291,12 @@ def GCMF_GEORGIEV(
     if (system_mass_sampler == GCS_MASS_EADIE) or (
         system_mass_sampler == GCS_MASS_LINEAR
     ):
-        gcs_mass = system_mass_sampler(stellar_mass)
+        if scatter > 0:
+            log_gcs_mass = np.log10(system_mass_sampler(stellar_mass))
+            log_gcs_mass_scattered = np.random.normal(loc=log_gcs_mass, scale=scatter)
+            gcs_mass = 10 ** log
+        else:
+            gcs_mass = system_mass_sampler(stellar_mass)
     elif (system_mass_sampler == GCS_NUMBER_LINEAR):
         # If the system mass is a number:
         lam = system_mass_sampler(halo_mass)

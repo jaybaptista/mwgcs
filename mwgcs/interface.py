@@ -248,7 +248,7 @@ class SymphonyInterfacer(Interfacer):
             np.savez_compressed(write_dir, data)
 
     def generate_clusters(
-        self, system_mass_sampler, gc_mass_sampler, write_path, allow_nsc=True, rng=None, force=False
+        self, system_mass_sampler, gc_mass_sampler, write_path, allow_nsc=True, rng=None, force=False, scatter=0.0
     ):
         rng = np.random.default_rng() if rng is None else rng
 
@@ -273,12 +273,22 @@ class SymphonyInterfacer(Interfacer):
         for i, infall_mass in enumerate(
             tqdm(infall_masses, desc=f"({self.output_prefix}) Sampling GC masses...")
         ):
-            gc_masses = gc_mass_sampler(
-                infall_mass,
-                system_mass_sampler=system_mass_sampler,
-                halo_mass=infall_halo_mass[i],
-                allow_nsc=allow_nsc,
-            )
+            
+            if scatter > 0.0:
+                gc_masses = gc_mass_sampler(
+                    infall_mass,
+                    system_mass_sampler=system_mass_sampler,
+                    halo_mass=infall_halo_mass[i],
+                    allow_nsc=allow_nsc,
+                    scatter=scatter
+                )
+            else:
+                gc_masses = gc_mass_sampler(
+                    infall_mass,
+                    system_mass_sampler=system_mass_sampler,
+                    halo_mass=infall_halo_mass[i],
+                    allow_nsc=allow_nsc,
+                )
 
             if gc_masses is None:
                 continue
