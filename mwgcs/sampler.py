@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.integrate import quad
-from scipy.stats import log, uniform
+from scipy.stats import uniform
 from scipy.interpolate import interp1d
 
 from itertools import chain
