@@ -293,8 +293,9 @@ def GCMF_GEORGIEV(
     ):
         if scatter > 0:
             log_gcs_mass = np.log10(system_mass_sampler(stellar_mass))
-            log_gcs_mass_scattered = np.random.normal(loc=log_gcs_mass, scale=scatter)
-            gcs_mass = 10 ** log
+            log_scatter = scatter * np.random.normal(0, 1, size=np.shape(log_gcs_mass))
+            log_gcs_mass += log_scatter
+            gcs_mass = 10 ** log_gcs_mass
         else:
             gcs_mass = system_mass_sampler(stellar_mass)
     elif (system_mass_sampler == GCS_NUMBER_LINEAR):
