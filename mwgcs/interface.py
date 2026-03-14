@@ -409,6 +409,7 @@ class SymphonyInterfacer(Interfacer):
         write_path,
         allow_nsc=False,
         rng=None,
+        scatter=0.0,
         force=False
     ):
         """
@@ -443,6 +444,7 @@ class SymphonyInterfacer(Interfacer):
                 system_mass_sampler=system_mass_sampler,
                 halo_mass=infall_halo_mass[i],
                 allow_nsc=allow_nsc,
+                scatter=scatter
             )
 
             if gc_masses is None:
