@@ -43,9 +43,9 @@ def GCS_MASS_HARRIS(halo_mass, g0=-0.725, g1=0.788, scatter=0.):
     mhalo = eta * halo_mass
 
     if scatter > 0:
-        log_mhalo = np.log10(mhalo)
-        log_mhalo_scattered = np.random.normal(loc=log_mhalo, scale=scatter)
-        mhalo = 10 ** log_mhalo_scattered
+        log_scatter = scatter * np.random.normal(0, 1, size=np.shape(mhalo))
+        log_mhalo = np.log10(mhalo) + log_scatter
+        mhalo = 10 ** log_mhalo
 
     return mhalo
 

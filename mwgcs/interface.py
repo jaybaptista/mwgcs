@@ -115,6 +115,7 @@ class SymphonyInterfacer(Interfacer):
             infall_mass = self.um["m_star"][halo_id, infall_snaps]
         else:
             mpeaks = self.hist["mpeak"]
+            # infall masses have 0.2 dex scatter
             fit = UniverseMachineMStarFit()
             infall_mass = np.array(
                 [fit.m_star(mp_i, z_i) for mp_i, z_i in zip(mpeaks, infall_z)]
