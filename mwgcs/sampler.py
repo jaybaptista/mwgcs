@@ -1,94 +1,15 @@
+import abc
 import numpy as np
-from scipy.integrate import quad
 from scipy.stats import uniform
 from scipy.interpolate import interp1d
+from mwgcs.tag import GlobularClusterRhalf
 
-from itertools import chain
+# TODO: kwargs
+
 """
 Mass-to-light ratios are taken from N-body modeling of globular clusters:
 https://arxiv.org/abs/1609.08794
 """
-
-
-# TODO: Test this function at some point for GC occupation.
-def EadieProbGC(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
-    """
-    Implementation for GC occupation probability as a function of a
-    galaxy's stellar mass.
-
-    Source: https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0
-    """
-
-    p = (1 + np.exp(-1 * (b0 + b1 * np.log10(stellar_mass)))) ** (-1)
-
-    if uniform.rvs() > p:  # i.e., failure to draw
-        return 0
-    else:
-        return 1
-
-
-def GCS_MASS_LINEAR(stellar_mass, g0=-0.725, g1=0.788):
-    """
-    Implementation of the linear regression model from Eadie+2022
-    Source: https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0
-    """
-    return 10 ** (g0 + g1 * np.log10(stellar_mass))
-
-def GCS_MASS_HARRIS(halo_mass, g0=-0.725, g1=0.788, scatter=0.):
-    """
-    Implementation of the Harris halo mass–GCS mass relation from
-    Harris, Blakeslee, & Harris (2017) paper.
-
-    Scatter is on eta
-    """
-    eta = 2.9e-5
-    mhalo = eta * halo_mass
-
-    if scatter > 0:
-        log_scatter = scatter * np.random.normal(0, 1, size=np.shape(mhalo))
-        log_eta = np.log10(eta) + log_scatter
-        return 10**log_eta * halo_mass
-    else:
-        return eta * halo_mass
-
-
-def GCS_MASS_EADIE(stellar_mass, b0=-10.83, b1=1.59, g0=-0.83, g1=0.8):
-    """
-    Implementation of the log-hurdle model from Eadie+2022
-    Source: https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0
-    """
-
-    system_mass = (
-        1
-        / (1 + np.exp(-(b0 + (b1 * np.log10(stellar_mass)))))
-        * (g0 + (g1 * np.log10(stellar_mass)))
-    )
-
-    return 10**system_mass
-
-def GCS_NUMBER_LINEAR(halo_mass, use_scatter=False):
-
-    log_eta = (-8.56 - 0.11 * np.log10(halo_mass))
-    
-    scatter_dex = 0.26 
-
-    # sample centered at log_eta and dex
-
-    if use_scatter:
-        log_eta_sampled = np.random.normal(loc=log_eta, scale=scatter_dex)
-        eta_N = 10**log_eta_sampled
-    else:
-        eta_N = 10**log_eta
-
-    return eta_N * halo_mass
-
-def KGSampler(halo_mass):
-    """
-    Equation 6 from Kravstov & Gnedin (2003)
-    NOTE: I'm doing the very bad thing of extrapolating to low masses. :(
-    Source: https://arxiv.org/abs/astro-ph/0305199
-    """
-    return 3.2e6 * (halo_mass / 1e11) ** (1.13)
 
 
 def magnitude_to_luminosity(magnitude, zero_point=5.12):
@@ -100,37 +21,88 @@ def luminosity_to_mass(luminosity, ratio=3.0):
     """Convert luminosity to mass using the mass-to-light ratio."""
     return luminosity * ratio
 
-"""
-SAMPLER UTILITIES FOR GAUSSIANS
-"""
 
-def generic_gcmf_gaussian(M, mu=-7.0, sigma_m=1.0, M_sun=5.12, ml_ratio=2.0, A=1.0):
-    jac = 1.0 / (np.log(10) * M)
-    sigma_M = sigma_m / 2.5
-    C = M_sun + 2.5 * np.log10(
-        ml_ratio
-    )  # Note, M_gsun is the absolute M-band magnitude, not mass
-    M_mu = 10 ** ((C - mu) / 2.5)
-    norm = A / (np.sqrt(2 * np.pi) * sigma_M)
-    dn_dm = norm * np.exp(
-        -(1 / (2 * sigma_M**2)) * (-np.log10(M) + np.log10(M_mu)) ** 2
-    )
-    return dn_dm * jac
-
-def make_lognormal10_icdf(mu_log10, sigma, 
-                          Mmin=1e-2, Mmax=1e8, n_grid=4096):
+class OccupationModel(abc.ABC):
     """
-    Build an inverse CDF for the PDF:
-      dN/dM = [1/(ln 10 * M)] * [1/(sqrt(2π) * σ_M)] *
+    Base class for GC occupation models
+    """
+
+    def __init__(self, seed=None):
+        self.kind = None
+        if seed is not None:
+            np.random.seed(seed)
+
+    @abc.abstractmethod
+    def var_names(self):
+        pass
+
+    @abc.abstractmethod
+    def p_gc(self, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def has_gc(self, **kwargs):
+        pass
+
+
+class GCSMassModel(abc.ABC):
+    """
+    Base class for GC system mass models
+    """
+
+    def __init__(self, seed=None):
+        self.kind = None
+        self.evolving = False
+        self.mean_mass = 0
+
+        if seed is not None:
+            np.random.seed(seed)
+
+    @abc.abstractmethod
+    def var_names(self):
+        pass
+
+    @abc.abstractmethod
+    def mass(self, **kwargs):
+        pass
+
+
+class GCLuminosityFunction(abc.ABC):
+    """
+    Base class for GC luminosity functions
+    """
+
+    def __init__(self, seed=None):
+        self.kind = None
+        self.evolving = False
+
+        if seed is not None:
+            np.random.seed(seed)
+
+    @abc.abstractmethod
+    def var_names(self):
+        pass
+
+    @abc.abstractmethod
+    def sample(self, n_draws, **kwargs):
+        pass
+
+
+def _lognormal_icdf(logmu, sigma, Mmin=1e-2, Mmax=1e8, n_grid=4096):
+    """
+    Returns the interpolated inverse CDF for the PDF of
+    the form:
+
+    dN/dM = [1/(ln 10 * M)] * [1/(sqrt(2π) * σ_M)] *
               exp( - (log10 M - μ)^2 / (2 σ_M^2) )
+
+    NOTE: logmu is the mean of the distribution in log10
     """
     M = np.logspace(np.log10(Mmin), np.log10(Mmax), n_grid)
-
-    # logspaced grid
     x = np.log10(M)
 
-    norm = np.log(10) * M * (np.sqrt(2*np.pi) * sigma)
-    pdf = np.exp(-0.5 * ((x - mu_log10)/sigma)**2) / norm
+    norm = np.log(10) * M * (np.sqrt(2 * np.pi) * sigma)
+    pdf = np.exp(-0.5 * ((x - logmu) / sigma) ** 2) / norm
     pdf = np.clip(pdf, 0.0, np.inf)
 
     # Integrate with trapezoid rule to get CDF
@@ -147,9 +119,16 @@ def make_lognormal10_icdf(mu_log10, sigma,
     cdf[-1] = 1.0
 
     # Build inverse CDF via interpolation
-    icdf_interp = interp1d(cdf, M, kind="linear", bounds_error=False,
-                           fill_value=(Mmin, Mmax), assume_sorted=True)
+    icdf_interp = interp1d(
+        cdf,
+        M,
+        kind="linear",
+        bounds_error=False,
+        fill_value=(Mmin, Mmax),
+        assume_sorted=True,
+    )
 
+    # define function
     def icdf(u):
         u = np.asarray(u, dtype=float)
         u = np.clip(u, 0.0, 1.0)
@@ -158,280 +137,317 @@ def make_lognormal10_icdf(mu_log10, sigma,
     return icdf
 
 
-def sample_generic_gcmf(n, mu, sigma_m, M_sun=5.12, ml_ratio=2.0, A=1.0):
+class GaussianGCLF(GCLuminosityFunction):
+    def __init__(self, mu=-7.0, sigma=1.0, M_sun=5.12, ml_ratio=2.0, seed=None):
+        """
+        Generic Gaussian GCLF
+        """
 
-    sigma_M = sigma_m / 2.5
-    C = M_sun + 2.5 * np.log10(
-        ml_ratio
-    )  # Note, M_gsun is the absolute M-band magnitude, not mass
-    M_mu = 10 ** ((C - mu) / 2.5)
+        super().__init__(seed=seed)
 
-    icdf = make_lognormal10_icdf(np.log10(M_mu), sigma_M)
-    u = np.random.uniform(size=n)
-    samples = icdf(u)
-    return samples
+        self.mu = mu
+        self.sigma = sigma
+        self.M_sun = M_sun
+        self.ml_ratio = ml_ratio
 
-"""
-SAMPLER UTILITIES FOR SCHECTER FUNCTIONS (WIP)
-"""
+        # converting to mass
+        C = M_sun + 2.5 * np.log10(ml_ratio)
+        self.M_mu = 10 ** ((C - mu) / 2.5)
+        self.sigma_M = sigma / 2.5
+        self.mean_mass = self.M_mu * np.exp(0.5 * (np.log(10) * self.sigma_M) ** 2)
 
-def _schecter_gcmf(M, D, Mc):
-    x = (M+D)
-    return np.exp(x/Mc) / x**2
+        # precompute the inverse CDF for sampling
+        self.icdf = _lognormal_icdf(np.log10(self.M_mu), self.sigma_M)
 
-def get_schecter_gcmf(Mmin, Mmax, D, Mc):
-    norm, _ = quad(_schecter_gcmf, Mmin, Mmax, args=(D, Mc))
-    
-    def schecter_pdf(M):
-        return _schecter_gcmf(M, D, Mc) / norm
-    
-    return schecter_pdf
+        self.kind = None  # Kind of dependence of the GCLF parameters
+        self.evolving = False  # Whether the GCLF parameters evolve over redshift
 
-def get_schecter_icdf(Mmin, Mmax, D, Mc):
-    n_grid = 100
-    M_grid = np.logspace(np.log10(Mmin), np.log10(Mmax), n_grid)
-    _pdf = get_schecter_gcmf(Mmin, Mmax, D, Mc)
-    pdf = _pdf(M_grid)
-    cdf = np.cumsum(pdf)
-    cdf = cdf / cdf[-1]
-    icdf = interp1d(cdf, M_grid, bounds_error=False, fill_value=(Mmin, Mmax))
-    return icdf
+    def var_names(self):
+        return ['mu', 'sigma', 'M_sun', 'ml_ratio']
 
-"""
-SCHECTER MASS FUNCTION (WIP)
-======================
-"""
+    def sample_mag(self, n_draws):
+        """
+        Samples magnitudes from the GCLF
+        """
+        return np.random.normal(self.mu, self.sigma, size=n_draws)
 
-def GCMF_SCHECTER(
-    stellar_mass,
-    mass_light_ratio=1.98,
-    system_mass_sampler=GCS_MASS_LINEAR,
-    halo_mass=1e12,
-    allow_nsc=True,
-):
-    """
-    Taken from Jordan+07: https://arxiv.org/abs/astro-ph/0702496
-    Implements Equation 7 for evolved Schecter mass function
-    """
-
-    M_c = 10 ** (5.9)
-    Delta = 5.4
-
-    min_mass = 1e3
-
-    def dN_dM_unnorm(mgc, const=1):
-        return const * np.exp(-(mgc + Delta) / M_c) / (mgc + Delta) ** 2
-
-    # Normalize dN/dM over the allowed mass range
-    max_mass = system_mass_sampler(stellar_mass)
-
-    norm, _ = quad(dN_dM_unnorm, min_mass, max_mass)
-
-    def dN_dM(mgc):
-        return dN_dM_unnorm(mgc) / norm
-
-    gc_mass = []
-
-    while np.sum(gc_mass) <= max_mass:
-        u = np.random.uniform()
-        # Inverse CDF sampling via rejection (since analytic inverse is hard)
-        # Sample mgc in [min_mass, max_mass] and accept with probability proportional to dN_dM
-        for _ in range(1000):  # Limit attempts to avoid infinite loop
-            mgc_candidate = np.random.uniform(min_mass, max_mass)
-            prob = dN_dM(mgc_candidate) / dN_dM(min_mass)
-            if np.random.uniform() < prob:
-                if (mgc_candidate + np.sum(gc_mass)) > max_mass:
-                    prob_last = (max_mass - np.sum(gc_mass)) / mgc_candidate
-                    if np.random.rand() > prob_last:
-                        break
-                gc_mass.append(mgc_candidate)
-                break
-
-    return np.array(gc_mass)
+    def sample(self, n_draws, **kwargs):
+        """
+        Samples masses from the GCLF
+        """
+        u = np.random.uniform(0, 1, size=n_draws)
+        return self.icdf(u)
 
 
 """
-    GAUSSIAN LUMINOSITY FUNCTIONS
-    =============================
-    The GCMF is basically a log-normal distribution
-    (scaled by log10 instead of ln)
-    
-    The mean of the distribution is:
-            M_mu * exp(0.5 * (ln 10 * sigma_M)^2)
-        where the following conversions are used:
-            M_mu = 10^((C - mu)/2.5);
-        where
-            C = M_sun + 2.5 log10(mass-light ratio)
-    """
+Occupation models
+"""
 
 
-def GCMF_GEORGIEV(
-    stellar_mass,
-    mass_light_ratio=1.98,
-    system_mass_sampler=GCS_MASS_LINEAR,
-    halo_mass=1e12,
-    allow_nsc=True,
-    p_gc=False,
-    scatter=0.0,
-):
-    """
-    Taken from Georgiev+2009 sample for the dSph luminosity functions
-    Source: https://ui.adsabs.harvard.edu/abs/2009MNRAS.392..879G/abstract
-    => Valid up to galaxy stellar masses of ~1e9 Msun
-    """
+class EadieOccupationModel(OccupationModel):
+    def __init__(self, b0=-10.83, b1=1.59, seed=None):
+        super().__init__(seed=seed)
+        self.kind = "stellar"
+        self.b0 = b0
+        self.b1 = b1
 
-    # Georgiev Survey Parameters
-    mu_V = -7.04
-    sigma_V = 1.15
-    V_sun = 4.80  # AB mag
-    C = V_sun + 2.5 * np.log10(mass_light_ratio)
-    M_mu = 10 ** ((C - mu_V) / 2.5)
-    sigma_mu = sigma_V / 2.5
-    mean_M_mu = M_mu * np.exp(0.5 * (np.log(10) * sigma_mu) ** 2)
-    gcs_mass = 0.0
+    def var_names(self):
+        return ["b0", "b1"]
 
-    if (system_mass_sampler == GCS_MASS_EADIE) or (
-        system_mass_sampler == GCS_MASS_LINEAR
-    ):
-        if scatter > 0:
-            log_gcs_mass = np.log10(system_mass_sampler(stellar_mass))
-            log_scatter = scatter * np.random.normal(0, 1, size=np.shape(log_gcs_mass))
-            log_gcs_mass += log_scatter
-            gcs_mass = 10 ** log_gcs_mass
+    def p_gc(self, stellar_mass):
+        p = (1 + np.exp(-1 * (self.b0 + self.b1 * np.log10(stellar_mass)))) ** (-1)
+        return p
+
+    def has_gc(self, stellar_mass):
+        p = self.p_gc(stellar_mass)
+        return uniform.rvs() < p
+
+
+class DornanOccupationModel(OccupationModel):
+    def __init__(self, b0=-31.86, b1=3.0, seed=None):
+        super().__init__(seed=seed)
+        self.kind = "halo"
+        self.b0 = b0
+        self.b1 = b1
+
+    def var_names(self):
+        return ["b0", "b1"]
+
+    def p_gc(self, halo_mass):
+        p = 1 / (1 + np.exp(-(self.b0 + self.b1 * np.log10(halo_mass))))
+        return p
+
+    def has_gc(self, halo_mass):
+        p = self.p_gc(halo_mass)
+        return uniform.rvs() < p
+
+
+"""
+GC system mass models
+"""
+
+
+class GCSMassLinearModel(GCSMassModel):
+    def __init__(self, g0=-0.725, g1=0.788, seed=None):
+        """
+        Implementation of the linear regression model from Eadie+2022
+        Source: https://iopscience.iop.org/article/10.3847/153
+        """
+        super().__init__(seed=seed)
+
+        self.g0 = g0
+        self.g1 = g1
+        self.kind = "stellar"
+
+    def var_names(self):
+        return ["g0", "g1"]
+
+    def mass(self, stellar_mass):
+        return 10 ** (self.g0 + self.g1 * np.log10(stellar_mass))
+
+
+class GCSMassHarrisModel(GCSMassModel):
+    def __init__(self, g0=-0.725, g1=0.788, scatter=0.0, seed=None):
+        """
+        Implementation of the Harris halo mass–GCS mass relation from
+        Harris, Blakeslee, & Harris (2017) paper.
+        """
+
+        super().__init__(seed=seed)
+
+        self.g0 = g0
+        self.g1 = g1
+        self.scatter = scatter
+        self.kind = "halo"
+
+    def var_names(self):
+        return ["g0", "g1", "scatter"]
+
+    def mass(self, halo_mass):
+        eta = 2.9e-5
+        mhalo = eta * halo_mass
+
+        if self.scatter > 0:
+            log_scatter = self.scatter * np.random.normal(0, 1, size=np.shape(mhalo))
+            log_eta = np.log10(eta) + log_scatter
+            return 10**log_eta * halo_mass
         else:
-            gcs_mass = system_mass_sampler(stellar_mass)
-    elif (system_mass_sampler == GCS_NUMBER_LINEAR):
-        # If the system mass is a number:
-        lam = system_mass_sampler(halo_mass)
-        n_draws = np.random.poisson(lam)
-        samples = sample_generic_gcmf(
-            n_draws, mu_V, sigma_V, M_sun=V_sun, ml_ratio=mass_light_ratio
+            return eta * halo_mass
+
+
+class GCSMassDornanModel(GCSMassModel):
+    def __init__(self, slope=0.9257, intercept=-3.5645, scatter=0.3, seed=None):
+        """
+        Implementation of the Dornan and Harris (2026) halo mass–GCS mass relation
+        refit to the Dornan dwarf galaxy catalog (except for Fornax Deep Survey)
+        """
+
+        super().__init__(seed=seed)
+
+        self.slope = slope
+        self.intercept = intercept
+        self.scatter = scatter
+        self.kind = "halo"
+
+    def var_names(self):
+        return ["slope", "intercept", "scatter"]
+
+    def mass(self, halo_mass, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+
+        if self.scatter > 0:
+            log_scatter = self.scatter * np.random.normal(
+                0, 1, size=np.shape(halo_mass)
+            )
+            log_mgc = self.intercept + self.slope * np.log10(halo_mass) + log_scatter
+            return 10**log_mgc
+        else:
+            return 10 ** (self.intercept + self.slope * np.log10(halo_mass))
+
+
+"""
+GC luminosity functions
+"""
+
+
+class GCMFGeorgiev(GaussianGCLF):
+    def __init__(self, mass_light_ratio=1.98, seed=None):
+        """
+        Implementation of the GCMF from Georgiev+2009
+        Source: https://ui.adsabs.harvard.edu/abs/2009MNRAS.392..879G/abstract
+        => Valid up to galaxy stellar masses of ~1e9 Msun
+        """
+        mu_V = -7.04
+        sigma_V = 1.15
+        V_sun = 4.80
+
+        super().__init__(
+            mu=mu_V, sigma=sigma_V, M_sun=V_sun, ml_ratio=mass_light_ratio, seed=seed
         )
 
-        if samples is None:
-            return []
-        try:
-            if samples.size == 0:
-                return []
-        except AttributeError:
-            if len(samples) == 0:
-                return []
-        
-        return np.array(samples)
-    else:
-        gcs_mass = system_mass_sampler(halo_mass)
 
-    if (gcs_mass == 0.0) or (p_gc and (EadieProbGC(stellar_mass) == 0)):
-        return []
+class GCMFElves(GaussianGCLF):
+    def __init__(self, mass_light_ratio=1.98, seed=None):
+        """
+        Implementation of the GCMF from ELVES (Carlsten+22a; https://www.arxiv.org/abs/2105.03440).
+        """
+        mu_g = -7.02
+        sigma_g = 0.57
+        g_sun = 5.05
 
-    gc_mass = []
-
-    lam = gcs_mass / mean_M_mu
-
-    if (lam <= 0) or np.isnan(lam):
-        print(f"ERROR: gcs_mass / mean_gc_mass = {lam}")
-        return []
-
-    n_draws = np.random.poisson(lam)
-
-    samples = sample_generic_gcmf(
-        n_draws, mu_V, sigma_V, M_sun=V_sun, ml_ratio=mass_light_ratio
-    )
-
-    gc_mass.extend(samples)
-
-    if allow_nsc:
-        if np.log10(stellar_mass) > 5.5:
-            gc_mass.append(10 ** (2.68 + 0.38 * np.log10(stellar_mass)))
-
-    return np.array(gc_mass)
-
-
-def GCMF_ELVES(
-    stellar_mass,
-    mass_light_ratio=1.98,
-    system_mass_sampler=GCS_MASS_LINEAR,
-    halo_mass=1e12,
-    allow_nsc=True,
-    p_gc=False,
-):
-    """
-    Returns samples from the dwarf galaxy mass function derived from the GCLF from
-    ELVES (Carlsten+22a).
-
-    Source: https://iopscience.iop.org/article/10.3847/1538-4357/ac457e
-
-
-    NOTE: Not implementing a low-mass cut-off at the moment.
-
-    This article would motivate the cutoff
-    https://iopscience.iop.org/article/10.3847/1538-4357/abd557
-
-    NOTE: Why did I remove the cutoff?
-
-    Some globular cluster systems only have stellar masses of ~100 Msun
-    in the Local Group! (See https://iopscience.iop.org/article/10.3847/1538-4357/ac33b0)
-    """
-
-    # ELVES Survey Parameters
-    mu_g = -7.02
-    sigma_g = 0.57
-    g_sun = 5.05  # AB mag
-    C = g_sun + 2.5 * np.log10(mass_light_ratio)
-    M_mu = 10 ** ((C - mu_g) / 2.5)
-    sigma_mu = sigma_g / 2.5
-    
-
-    gcs_mass = 0.0
-
-    if (system_mass_sampler == GCS_MASS_EADIE) or (
-        system_mass_sampler == GCS_MASS_LINEAR
-    ):
-        gcs_mass = system_mass_sampler(stellar_mass)
-    elif (system_mass_sampler == GCS_NUMBER_LINEAR):
-        
-        # If the system mass is a number:
-        lam = system_mass_sampler(halo_mass)
-        n_draws = np.random.poisson(lam)
-        samples = sample_generic_gcmf(
-            n_draws, mu_g, sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio
+        super().__init__(
+            mu=mu_g, sigma=sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio, seed=seed
         )
 
-        if samples is None:
-            return []
-        try:
-            if samples.size == 0:
-                return []
-        except AttributeError:
-            if len(samples) == 0:
-                return []
-        
-        return np.array(samples)
-    else:
-        gcs_mass = system_mass_sampler(halo_mass)
 
-    if (gcs_mass == 0.0) or (p_gc and (EadieProbGC(stellar_mass) == 0)):
-        return []
-    
-    gc_mass = []
+class GCMFVillegas(GaussianGCLF):
+    def __init__(self, halo_mass, mass_light_ratio=1.98, seed=None):
+        """
+        Implementation of the GCMF from Villegas+2010, which depends on galaxy mass
+        """
+        self.kind = "halo"
+        mu_g = self._mu_g(np.log10(halo_mass), seed=seed)
+        sigma_g = self._sigma_g(np.log10(halo_mass), seed=seed)
+        g_sun = 5.05
+        super().__init__(
+            mu=mu_g, sigma=sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio, seed=seed
+        )
+        self.kind = "halo"
 
-    mean_M_mu = M_mu * np.exp(0.5 * (np.log(10) * sigma_mu) ** 2)
-    lam = gcs_mass / mean_M_mu
+    """
+    Fits to the Villegas+2010 GCLF parameters as a function of galaxy mass, with scatter
+    """
 
-    if (lam <= 0) or np.isnan(lam):
-        print(f"ERROR: gcs_mass / mean_gc_mass = {lam}")
-        return []
-    
-    n_draws = np.random.poisson(lam)
+    def _mu_g(self, mpeak, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        x0 = 11.8
+        y0 = -7.29
+        m = -0.09
+        sqrtV = 0.18
+        scatter = np.random.normal(0, 1) * sqrtV
+        return y0 + m * (np.log10(mpeak) - x0) + scatter
 
-    samples = sample_generic_gcmf(
-        n_draws, mu_g, sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio
-    )
+    def _sigma_g(self, mpeak, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        x0 = 11.8
+        y0 = 0.95
+        m = 0.34
+        sqrtV = 0.15
+        scatter = np.random.normal(0, 1) * sqrtV
+        return y0 + m * (np.log10(mpeak) - x0) + scatter
 
-    gc_mass.extend(samples)
 
-    if allow_nsc:
-        if np.log10(stellar_mass) > 5.5:
-            gc_mass.append(10 ** (2.68 + 0.38 * np.log10(stellar_mass)))
+class GCHaloModel:
+    def __init__(self, occupation_model, mass_model, gclf_model, nimbus_profile, seed=None):
+        self.occupation_model = occupation_model
+        self.mass_model = mass_model
+        self.gclf_model = gclf_model
+        self.nimbus_profile = nimbus_profile
 
-    return np.array(gc_mass)
+        if seed is not None:
+            np.random.seed(seed)
+
+        self.required_inputs = ["halo_mass", "stellar_mass"]
+
+    def kwargs(self):
+        return {
+            "occupation_model": self.occupation_model.kwargs(),
+            "mass_model": self.mass_model.kwargs(),
+            "gclf_model": self.gclf_model.kwargs(),
+            "nimbus_profile": self.nimbus_profile.kwargs(),
+        }
+
+    def generate(self, **kwargs):
+        """
+        Returns a tuple (bool: has_gc, int: gc_count, list: gc_masses)
+        """
+
+        halo_mass = kwargs.get("halo_mass")
+        stellar_mass = kwargs.get("stellar_mass")
+        # TODO: add redshift evolution
+
+        if halo_mass is None:
+            raise ValueError("halo_mass not supplied")
+        if stellar_mass is None:
+            raise ValueError("stellar_mass not supplied")
+
+        has_gc = self.occupation_model.has_gc(
+            input_mass=halo_mass
+            if self.occupation_model.kind == "halo"
+            else stellar_mass
+        )
+
+        if not has_gc:
+            return False, 0, []
+
+        gc_mass = self.mass_model.mass(
+            input_mass=halo_mass if self.mass_model.kind == "halo" else stellar_mass
+        )
+
+        if gc_mass <= 0:
+            return True, 0, None
+
+        lam = gc_mass / self.gclf_model.mean_mass
+
+        if lam <= 0 or np.isnan(lam):
+            print(f"ERROR: gc_mass / mean_gc_mass = {lam}")
+            return True, 0, None
+
+        n_draws = np.random.poisson(lam)
+
+        gc_masses = self.gclf_model.sample(n_draws)
+
+        return True, n_draws, gc_masses
+
+
+class FiducialGCHaloModel(GCHaloModel):
+    def __init__(self):
+        super().__init__(
+            occupation_model=EadieOccupationModel(),
+            mass_model=GCSMassLinearModel(),
+            gclf_model=GCMFGeorgiev(),
+            nimbus_profile=GlobularClusterRhalf(),
+        )

@@ -1,12 +1,55 @@
-"""
-Credit: Phil Mansfield
-"""
 import numpy as np
 import heapq
 import symlib
 
 
-def tag_energy_cut(p, E, r50, n_min=8):
+class GlobularClusterRhalf(symlib.RHalfModel):
+    """
+    A model for the half-light radius of a globular cluster system.
+    The assumption is that the rGC (= Rhalf of the GC system) is a fixed multiple of the
+    galaxy's effective radius. We adopt the stacked fit from Carlsten+2021 (arxiv.org/abs/2105.03440)
+    which, for a local volume sample, fits rGC/r_eff ~ 1.06.
+    """
+
+    def __init__(self, ratio=1.06, galaxy_profile=symlib.Jiang2019RHalf()):
+        self.ratio = ratio
+        self.galaxy_profile = galaxy_profile
+
+    def r_half(self, rvir=None, cvir=None, z=None):
+        if rvir is None:
+            raise ValueError("rvir not supplied")
+        if cvir is None:
+            raise ValueError("cvir not supplied")
+        if z is None:
+            raise ValueError("z not supplied")
+        reff_galaxy = self.galaxy_profile.r_half(rvir=rvir, cvir=cvir, z=z)
+        return self.ratio * reff_galaxy
+
+    def r_half_is_2d(self):
+        return self.galaxy_profile.r_half_is_2d()
+
+    def var_names(self):
+        return ["rvir", "cvir", "z"]
+
+
+GC_HALO_MODEL = symlib.GalaxyHaloModel(
+    symlib.StellarMassModel(symlib.UniverseMachineMStarFit(), symlib.DarkMatterSFH()),
+    symlib.ProfileModel(GlobularClusterRhalf(ratio=1.2), symlib.PlummerProfile()),
+    symlib.MetalModel(
+        symlib.Kirby2013Metallicity(),
+        symlib.Kirby2013MDF(model_type="gaussian"),
+        symlib.GaussianCoupalaCorrelation(),
+    ),
+)
+
+"""
+Credit: Phil Mansfield
+A set of functions to return star weights in the event
+that fitting the profile fails.
+"""
+
+
+def tag_energy_cut(p, E, r50, n_min=8, profile="uniform"):
     """tag_energy_cut tags particles according to an energy cut. Invalid
     partcles need to be removed and the particles already need to be centered
     on their subhalos.
@@ -31,7 +74,18 @@ def tag_energy_cut(p, E, r50, n_min=8):
         n_core = candidates[-1]
 
     mp = np.zeros(len(E))
-    mp[order[:n_core]] = 1 / n_core
+
+    if profile == "uniform":
+        mp[order[:n_core]] = 1 / n_core
+    elif profile == "plummer":
+        a = r50
+        r_core = r[order[:n_core]]
+        mp[order[:n_core]] = (
+            3 * a**2 / (4 * np.pi * r_core**2 * (r_core**2 + a**2) ** (3 / 2))
+        )  # plummer
+        mp[order[:n_core]] /= np.sum(mp[order[:n_core]])  # normalize
+    else:
+        raise ValueError(f"unknown profile: {profile}")
 
     return mp
 
