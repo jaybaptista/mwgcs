@@ -415,7 +415,7 @@ class GCHaloModel:
             raise ValueError("stellar_mass not supplied")
 
         has_gc = self.occupation_model.has_gc(
-            input_mass=halo_mass
+            halo_mass
             if self.occupation_model.kind == "halo"
             else stellar_mass
         )
