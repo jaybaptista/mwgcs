@@ -85,6 +85,11 @@ class GChords(object):
         self.interface = interfacer
         self.gc_halo_model = gc_halo_model
         self.particle_tags = None
+        # particle tagging with Nimbus
+        self.weights, _, _ = symlib.tag_stars(
+            self.interface.sim_dir,
+            self.gc_halo_model.nimbus_model,
+        )
 
     def generate_clusters(self, write_dir='particles.csv', seed=None, **kwargs):
         n_snapshots = len(self.interface.scale_factors)
@@ -94,11 +99,7 @@ class GChords(object):
         if seed is not None:
             np.random.seed(seed)
 
-        # particle tagging with Nimbus
-        weights, _, _ = symlib.tag_stars(
-            self.interface.sim_dir,
-            self.gc_halo_model.nimbus_model,
-        )
+        
 
         df = pd.DataFrame(
                 columns=[
@@ -126,7 +127,7 @@ class GChords(object):
             if (_mgcs is None) or (self.interface.infall_properties["preinfall_host_idx"][k] != -1):
                 continue
 
-            mp = weights[k]['mp']
+            mp = self.weights[k]['mp']
             
             # TODO: look carefulely at this.
             # e.g., if there aren't enough particles 
@@ -137,8 +138,8 @@ class GChords(object):
             
             p_draw = mp / np.sum(mp)
             draws = np.random.choice(len(mp), size=len(_mgcs), replace=False, p=p_draw)
-            feh = weights[k]['Fe_H'][draws]
-            a_form = weights[k]['a_form'][draws]
+            feh = self.weights[k]['Fe_H'][draws]
+            a_form = self.weights[k]['a_form'][draws]
 
             rows.append(
                 pd.DataFrame(
