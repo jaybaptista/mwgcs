@@ -137,7 +137,7 @@ class GChords(object):
             
             p_draw = mp / np.sum(mp)
             draws = np.random.choice(len(mp), size=len(_mgcs), replace=False, p=p_draw)
-            feh = weights[k]['feh'][draws]
+            feh = weights[k]['Fe_H'][draws]
             a_form = weights[k]['a_form'][draws]
 
             rows.append(
