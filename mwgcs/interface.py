@@ -97,7 +97,7 @@ class GChords(object):
         # particle tagging with Nimbus
         weights, _, _ = symlib.tag_stars(
             self.interface.sim_dir,
-            self.gc_halo_model.nimbus_profile,
+            self.gc_halo_model.nimbus_model,
         )
 
         df = pd.DataFrame(
@@ -195,7 +195,7 @@ class GChords(object):
                 data[snapshot, ok, 3:] = p_flat[i_t]["v"]
         
         np.savez_compressed(write_dir, xv=data)
-        
+
 def is_bound(q, p, subhalo_pos, subhalo_vel, params):
     dq = q - subhalo_pos
     dp = p - subhalo_vel

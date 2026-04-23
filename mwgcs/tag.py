@@ -32,15 +32,6 @@ class GlobularClusterRhalf(symlib.RHalfModel):
         return ["rvir", "cvir", "z"]
 
 
-GC_HALO_MODEL = symlib.GalaxyHaloModel(
-    symlib.StellarMassModel(symlib.UniverseMachineMStarFit(), symlib.DarkMatterSFH()),
-    symlib.ProfileModel(GlobularClusterRhalf(ratio=1.2), symlib.PlummerProfile()),
-    symlib.MetalModel(
-        symlib.Kirby2013Metallicity(),
-        symlib.Kirby2013MDF(model_type="gaussian"),
-        symlib.GaussianCoupalaCorrelation(),
-    ),
-)
 
 """
 Credit: Phil Mansfield

@@ -2,6 +2,7 @@ import abc
 import numpy as np
 from scipy.stats import uniform
 from scipy.interpolate import interp1d
+import symlib
 from mwgcs.tag import GlobularClusterRhalf
 
 # TODO: kwargs
@@ -381,23 +382,22 @@ class GCMFVillegas(GaussianGCLF):
 
 
 class GCHaloModel:
-    def __init__(self, occupation_model, mass_model, gclf_model, nimbus_profile, seed=None):
+    def __init__(self, occupation_model, mass_model, gclf_model, nimbus_model, seed=None):
         self.occupation_model = occupation_model
         self.mass_model = mass_model
         self.gclf_model = gclf_model
-        self.nimbus_profile = nimbus_profile
+        self.nimbus_model = nimbus_model
 
         if seed is not None:
             np.random.seed(seed)
 
         self.required_inputs = ["halo_mass", "stellar_mass"]
 
-    def kwargs(self):
+    def var_names(self):
         return {
-            "occupation_model": self.occupation_model.kwargs(),
-            "mass_model": self.mass_model.kwargs(),
-            "gclf_model": self.gclf_model.kwargs(),
-            "nimbus_profile": self.nimbus_profile.kwargs(),
+            "occupation_model": self.occupation_model.var_names(),
+            "mass_model": self.mass_model.var_names(),
+            "gclf_model": self.gclf_model.var_names(),
         }
 
     def generate(self, **kwargs):
@@ -442,6 +442,15 @@ class GCHaloModel:
 
         return True, n_draws, gc_masses
 
+GC_HALO_MODEL = symlib.GalaxyHaloModel(
+    symlib.StellarMassModel(symlib.UniverseMachineMStarFit(), symlib.DarkMatterSFH()),
+    symlib.ProfileModel(GlobularClusterRhalf(), symlib.PlummerProfile()),
+    symlib.MetalModel(
+        symlib.Kirby2013Metallicity(),
+        symlib.Kirby2013MDF(model_type="gaussian"),
+        symlib.GaussianCoupalaCorrelation(),
+    ),
+)
 
 class FiducialGCHaloModel(GCHaloModel):
     def __init__(self):
@@ -449,5 +458,5 @@ class FiducialGCHaloModel(GCHaloModel):
             occupation_model=EadieOccupationModel(),
             mass_model=GCSMassLinearModel(),
             gclf_model=GCMFGeorgiev(),
-            nimbus_profile=GlobularClusterRhalf(),
+            nimbus_model=GC_HALO_MODEL(),
         )
