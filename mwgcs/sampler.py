@@ -424,7 +424,7 @@ class GCHaloModel:
             return False, 0, []
 
         gc_mass = self.mass_model.mass(
-            input_mass=halo_mass if self.mass_model.kind == "halo" else stellar_mass
+            halo_mass if self.mass_model.kind == "halo" else stellar_mass
         )
 
         if gc_mass <= 0:
