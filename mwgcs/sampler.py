@@ -458,5 +458,5 @@ class FiducialGCHaloModel(GCHaloModel):
             occupation_model=EadieOccupationModel(),
             mass_model=GCSMassLinearModel(),
             gclf_model=GCMFGeorgiev(),
-            nimbus_model=GC_HALO_MODEL(),
+            nimbus_model=GC_HALO_MODEL,
         )
