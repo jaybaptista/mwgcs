@@ -1,28 +1,28 @@
-from .interface import SymphonyInterfacer
-from .sampler import GCS_MASS_EADIE, GCMF_ELVES
+# from .interface import SymphonyInterfacer
+# from .sampler import GCS_MASS_EADIE, GCMF_ELVES
 
-halo_directory = '/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/SymphonyMilkyWay/Halo023'
+# halo_directory = '/fs/ddn/sdf/group/kipac/g/cosmo/ki21/phil1/simulations/ZoomIns/SymphonyMilkyWay/Halo023'
 
-OUTPUT            = "output"
+# OUTPUT            = "output"
 
-"""GC–Halo Connection"""
-GC_MASS_FUNCTION  = GCMF_ELVES
-GCS_MASS_FUNCTION = GCS_MASS_EADIE
-ALLOW_NSC         = True
+# """GC–Halo Connection"""
+# GC_MASS_FUNCTION  = GCMF_ELVES
+# GCS_MASS_FUNCTION = GCS_MASS_EADIE
+# ALLOW_NSC         = True
 
-"""Orbit Integration"""
-ACCURACY=1e-8
-THREAD_COUNT=4
+# """Orbit Integration"""
+# ACCURACY=1e-8
+# THREAD_COUNT=4
 
-"""Multipole Approximation"""
-LMAX         = 4
-LMAX_SUBHALO = 1
-RMIN         = 0.001
-RMAX         = 250
+# """Multipole Approximation"""
+# LMAX         = 4
+# LMAX_SUBHALO = 1
+# RMIN         = 0.001
+# RMAX         = 250
 
-"""GC Evolution and Integration"""
-KAPPA = 1.0
-IMF   = "kroupa"
+# """GC Evolution and Integration"""
+# KAPPA = 1.0
+# IMF   = "kroupa"
 
 #si = SymphonyInterfacer(
 #    halo_directory,
