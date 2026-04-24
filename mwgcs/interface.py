@@ -79,7 +79,23 @@ class SymphonyInterface(Interface):
 
         self.infall_properties["preinfall_host_idx"] = symlib.pre_infall_host(hist)
 
+    def get_gse_index(self):
+        '''
+        returns the GSE halo based on the Buch+2024 (https://arxiv.org/abs/2404.08043) criteria
+        '''
 
+        candidates = np.zeros(len(self.infall_properties["infall_snapshot"]), dtype=bool)
+        candidates[1:] = True # exclude host
+
+        infall_redshifts = 1 / self.scale_factors[self.infall_properties["infall_snapshot"]] - 1
+        candidates &= (self.infall_properties["infall_snapshot"] >= 0) & (self.infall_properties["infall_snapshot"] < len(self.scale_factors))
+        candidates &= (infall_redshifts > 0.67) & (infall_redshifts < 3.0)
+
+        if np.any(candidates):
+            gse_index = np.where(candidates)[0][np.argmax(self.infall_properties["halo_mass"][candidates])]
+            return gse_index
+        else:
+            return -1
 class GChords(object):
     def __init__(self, interfacer, gc_halo_model, **kwargs):
         self.interface = interfacer
