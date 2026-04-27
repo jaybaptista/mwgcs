@@ -5,6 +5,7 @@ from .evolve import *
 from .tracer import *
 from .tag import *
 from .potential import *
+from .stars import *
 
 import pyximport
 

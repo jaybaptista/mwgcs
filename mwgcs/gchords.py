@@ -21,7 +21,9 @@ class GChords(object):
         self.is_manually_tagged = True
 
     def set_particle_tracks(self, particle_tracks):
-        self.particle_tracks = particle_tracks
+        self.particle_tracks = particle_tracks['xv']
+        self.particle_indices = particle_tracks['particle_index']
+        self.index_to_pos = particle_tracks['mapping']
 
     def generate_clusters(self, write_dir='particles.csv', seed=None, **kwargs):
         infall_snapshots = self.interface.infall_properties["infall_snapshot"]
@@ -113,6 +115,9 @@ class GChords(object):
         if self.is_manually_tagged:
             print('Manually tag particles--only track unique particles')    
             n_tracked_particles = len(indices)
+
+        # defines mapping from particle index to row in tracking array
+        self.index_to_pos = {idx: i for i, idx in enumerate(indices)}
         
         data = np.zeros((len(self.interface.scale_factors), n_tracked_particles, 6)) * np.nan
         unique_particle_tags = self.particle_tags.drop_duplicates(subset="particle_index")
@@ -140,7 +145,7 @@ class GChords(object):
         
         self.particle_tracks = data
         self.particle_indices = indices
-        np.savez_compressed(write_dir, xv=data, particle_index=indices)
+        np.savez_compressed(write_dir, xv=data, particle_index=indices, mapping=self.index_to_pos)
 
     def find_unique_particles(self):
         if self.particle_tags is None:
@@ -190,7 +195,28 @@ class GChords(object):
             st_sample = potential.tidal_strength(x_sample, t=t_sample / 0.97779222) * 1.0459401725324529
             _t.append(t_sample)
             _st.append(st_sample)
-            spl_st = PchipInterpolator(t_sample, np.sqrt(st_sample))
+            spl_st = PchipInterpolator(t_sample, np.sqrt(st_sample)) # root of tidal frequency is `tidal strength`
             _int_st.append(spl_st.integrate(t_sample[0], t_sample[-1]))
 
         np.savez_compressed(write_dir, tidal_field=np.array(_st, dtype=object), time=np.array(_t, dtype=object), integrated_tidal_field=_int_st)
+
+    def compute_cluster_masses(self, tidal_data, mass_loss_model, write_dir='particles_evolved.csv', integrated=False):
+        '''
+        Compute the evolved masses of star clusters over time
+
+        integrated: if True, `st` is time-integrated tidal strength and passes the MassLossModel `integrated` flag.
+        '''
+        if integrated:
+            st = tidal_data["integrated_tidal_field"]
+            self.particle_tags["evolved_mass"].values = mass_loss_model.evolve_mass(initial_mass=self.particle_tags["gc_mass"].values, time=0.0, tidal_strength=st, integrated=True)
+        else:
+            t = tidal_data["time"]
+            st = tidal_data["tidal_field"]
+            for i in tqdm(range(len(self.particle_tags)), desc="Numerically evolving cluster masses..."):
+                # get the time and tidal strength for this particle's track
+                t_i = t[self.index_to_pos[self.particle_tags["particle_index"].values[i]]]
+                st_i = st[self.index_to_pos[self.particle_tags["particle_index"].values[i]]]
+                self.particle_tags["evolved_mass"].values[i] = mass_loss_model.evolve_mass(initial_mass=self.particle_tags["gc_mass"].values[i], time=t_i, tidal_strength=st_i, integrated=False)        
+
+        self.particle_tags.to_csv(write_dir, index=False)
+        return self.particle_tags['evolved_mass'].values
