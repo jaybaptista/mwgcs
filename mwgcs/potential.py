@@ -24,7 +24,7 @@ class Potential(ABC):
         pass
 
     def read_potential(self, directory):
-        self.phi = agama.Potential(filename=directory)
+        self.phi = agama.Potential(file=directory)
 
     def tidal_tensor(self):
         if self.phi is None:
@@ -90,7 +90,7 @@ class SymphonyPotential(AgamaPotential):
 
         for snapshot in tqdm(range(len(self.interface.scale_factors)), desc="Constructing potentials..."):
             
-            p_snap = self.interface.particles.read(snapshot, mode, halo=0)
+            p_snap = self.interface.particles.read(snapshot, mode=mode, halo=0)
             x = p_snap['x'][p_snap['ok']]
             
             if len(x) < min_particles:
@@ -129,7 +129,7 @@ class SymphonyPotential(AgamaPotential):
                 f.write(f"{age_int[k]} snap_{k}.ini\n")
             f.write("\n")
 
-        self.phi = agama.Potential(filename=os.path.join(self.write_dir, 'potential.ini'))
+        self.phi = agama.Potential(file=os.path.join(self.write_dir, 'potential.ini'))
         self.potential_exists = True
 
     

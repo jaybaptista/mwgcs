@@ -115,8 +115,10 @@ class GChords(object):
             n_tracked_particles = len(indices)
         
         data = np.zeros((len(self.interface.scale_factors), n_tracked_particles, 6)) * np.nan
-        
-        for snapshot in tqdm(range(len(self.interface.scale_factors)), desc="Tracking particles across snapshots..."):
+        unique_particle_tags = self.particle_tags.drop_duplicates(subset="particle_index")
+        first_infall_snapshot = int(self.particle_tags["infall_snap"].min())
+
+        for snapshot in tqdm(range(first_infall_snapshot, len(self.interface.scale_factors)), desc="Tracking particles across snapshots..."):
             # Load all the subhalos at a given snapshot and their corresponding particles
             particles = self.interface.particles.read(snapshot, mode="stars", comoving=comoving)
             p_flat = np.hstack(particles)
@@ -124,12 +126,17 @@ class GChords(object):
             # select unique particles if manually tagged, otherwise select all tagged particles
             ok = self.particle_tags["infall_snap"] <= snapshot
             if self.is_manually_tagged:
-                ok &= np.isin(self.particle_tags["particle_index"], indices)
+                ok = unique_particle_tags["infall_snap"] <= snapshot
 
             if ok.any():
-                i_t = self.particle_tags["particle_index"][ok]
-                data[snapshot, ok, :3] = p_flat[i_t]["x"]
-                data[snapshot, ok, 3:] = p_flat[i_t]["v"]
+                if self.is_manually_tagged:
+                    i_t = unique_particle_tags["particle_index"][ok]
+                    data[snapshot, ok.values, :3] = p_flat[i_t]["x"]
+                    data[snapshot, ok.values, 3:] = p_flat[i_t]["v"]
+                else:
+                    i_t = self.particle_tags["particle_index"][ok]
+                    data[snapshot, ok, :3] = p_flat[i_t]["x"]
+                    data[snapshot, ok, 3:] = p_flat[i_t]["v"]
         
         self.particle_tracks = data
         self.particle_indices = indices
@@ -139,7 +146,7 @@ class GChords(object):
         if self.particle_tags is None:
             raise ValueError("No particle tags found. Run generate_clusters() first.")
         
-        _p = self.interface.particles.read(len(self.interface.scale_factors), mode="stars", comoving=False)
+        _p = self.interface.particles.read(len(self.interface.scale_factors)-1, mode="stars", comoving=False)
         sizes = np.array([len(p) for p in _p])
         edges = np.zeros(len(sizes) + 1, int)
         edges[1:] = np.cumsum(sizes)
@@ -186,4 +193,4 @@ class GChords(object):
             spl_st = PchipInterpolator(t_sample, np.sqrt(st_sample))
             _int_st.append(spl_st.integrate(t_sample[0], t_sample[-1]))
 
-        np.savez_compressed(write_dir, tidal_field=_st, time=_t, integrated_tidal_field=_int_st)
+        np.savez_compressed(write_dir, tidal_field=np.array(_st, dtype=object), time=np.array(_t, dtype=object), integrated_tidal_field=_int_st)

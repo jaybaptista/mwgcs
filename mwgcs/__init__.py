@@ -4,6 +4,7 @@ from .sampler import *
 from .evolve import *
 from .tracer import *
 from .tag import *
+from .potential import *
 
 import pyximport
 
