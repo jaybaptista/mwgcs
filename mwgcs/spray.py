@@ -7,7 +7,7 @@ import agama
 
 agama.setUnits(length=1., mass=1., velocity=1.)
 
-from .evolve import evolve_stellar_mass
+from .stars import evolve_stellar_mass
 
 
 def compute_jacobi_radius(pot_host, sat_orbit, sat_mass):

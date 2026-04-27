@@ -1,4 +1,4 @@
-from .evolve import ClusterMass, calculate_tidal_tensor, evolve_stellar_mass
+from .stars import ClusterMass, calculate_tidal_tensor, evolve_stellar_mass
 from .spray import compute_jacobi_radius
 import numpy as np
 import agama

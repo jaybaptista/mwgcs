@@ -56,7 +56,7 @@ class FiducialRelaxationMassLossModel(RelaxationMassLossModel):
         self.kappa = kappa
     
     def mass_loss_rate(self, m_cl, tidal_strength):
-        return -  10 * (m_cl / 2e5)**(2.0/3.0) / (np.sqrt(self.kappa * tidal_strength / 3) / 100.0)
+        return - m_cl / ( 10 * (m_cl / 2e5)**(2.0/3.0) / (np.sqrt(self.kappa * tidal_strength / 3) / 100.0))
 
 class FiducialMassLossModel(MassLossModel):
     def __init__(self, kappa=1.0):
@@ -65,7 +65,7 @@ class FiducialMassLossModel(MassLossModel):
 
     def evolve_mass(self, initial_mass, time, tidal_strength, integrated=False):
         
-        A = np.sqrt(self.kappa / 3.0) * (2e5)**(2/3) / 1000
+        A = np.sqrt(self.relaxation_model.kappa / 3.0) * (2e5)**(2/3) / 1000
 
         if integrated:
             # `tidal_strength` is the time-integrated tidal strength
@@ -80,5 +80,5 @@ class FiducialMassLossModel(MassLossModel):
             def dMdt(t, m_cl):
                 return self.relaxation_model.mass_loss_rate(m_cl, interpolated_strength(t))
 
-            sol = solve_ivp(dMdt, (time[0], time[-1]), [initial_mass], t_eval=time)
+            sol = solve_ivp(dMdt, (time[0], time[-1]), [initial_mass], t_eval=[time[-1]])
             return sol.y[0]

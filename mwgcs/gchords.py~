@@ -19,7 +19,6 @@ class GChords(object):
     def set_particle_tags(self, particle_tags):
         self.particle_tags = particle_tags
         self.is_manually_tagged = True
-        _ = self.find_unique_particles()
 
     def set_particle_tracks(self, particle_tracks):
         self.particle_tracks = particle_tracks['xv']
@@ -207,11 +206,9 @@ class GChords(object):
 
         integrated: if True, `st` is time-integrated tidal strength and passes the MassLossModel `integrated` flag.
         '''
-        self.particle_tags["evolved_mass"] = np.zeros(len(self.particle_tags))
-
         if integrated:
             st = tidal_data["integrated_tidal_field"]
-            self.particle_tags["evolved_mass"] = mass_loss_model.evolve_mass(initial_mass=self.particle_tags["gc_mass"].values, time=0.0, tidal_strength=st, integrated=True)
+            self.particle_tags["evolved_mass"].values = mass_loss_model.evolve_mass(initial_mass=self.particle_tags["gc_mass"].values, time=0.0, tidal_strength=st, integrated=True)
         else:
             t = tidal_data["time"]
             st = tidal_data["tidal_field"]
