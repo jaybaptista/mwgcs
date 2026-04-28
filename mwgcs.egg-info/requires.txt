@@ -1,7 +1,0 @@
-numpy
-scipy
-matplotlib
-asdf
-h5py
-symlib
-astropy
