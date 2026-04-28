@@ -21,7 +21,5 @@ setup(
         "symlib",
         "astropy"
     ],
-    ext_modules=cythonize("mwgcs/cy_evolve.pyx"),
     include_dirs=[np.get_include()]
-
 )

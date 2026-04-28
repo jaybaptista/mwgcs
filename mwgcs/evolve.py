@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 import agama
-from scipy.integrate import quad, solve_ivp
+from scipy.integrate import solve_ivp
 from scipy.interpolate import PchipInterpolator
 
 agama.setUnits(mass=1.0, length=1.0, velocity=1.0)
