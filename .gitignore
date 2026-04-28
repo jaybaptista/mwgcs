@@ -10,3 +10,5 @@
 **/deprecate/
 **/__pycache__/
 science/.DS_Store
+mwgcs.egg-info/
+build/
