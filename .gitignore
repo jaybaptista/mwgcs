@@ -9,6 +9,6 @@
 **/.ipynb_checkpoints/
 **/deprecate/
 **/__pycache__/
-science/.DS_Store
+*/.DS_Store
 mwgcs.egg-info/
 build/
