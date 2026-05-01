@@ -223,3 +223,14 @@ class GChords(object):
 
         self.particle_tags.to_csv(write_dir, index=False)
         return self.particle_tags['evolved_mass'].values
+    
+    def apply_selection_function(self, selection_function, write_dir='particles_selected.csv'):
+        if self.particle_tags is None:
+            raise ValueError("No particle tags found. Run generate_clusters() first.")
+        
+        if self.particle_tracks is None:
+            raise ValueError("No particle tracks found. Run track_clusters() first.")
+        
+        x_obs = selection_function.x_obs
+        v_obs = selection_function.v_obs
+        selected = selection_function.select_particles((x_obs, v_obs))

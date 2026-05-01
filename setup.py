@@ -6,12 +6,12 @@ from setuptools import setup, Extension
 import numpy as np
 
 setup(
-    name="mwgcs",
+    name="gchords",
     version="1.0",
     description="Globular cluster formation and evolution in Symphony",
     author="Jay Baptista",
     author_email="jaymarie@stanford.edu",
-    packages=["mwgcs"],
+    packages=["gchords"],
     install_requires=[
         "numpy",
         "scipy",

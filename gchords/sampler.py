@@ -3,7 +3,7 @@ import numpy as np
 from scipy.stats import uniform
 from scipy.interpolate import interp1d
 import symlib
-from mwgcs.tag import GlobularClusterRhalf
+from gchords.tag import GlobularClusterRhalf
 
 # TODO: kwargs
 
@@ -88,6 +88,19 @@ class GCLuminosityFunction(abc.ABC):
     def sample(self, n_draws, **kwargs):
         pass
 
+
+class GCMassLightRatioModel(abc.ABC):
+    def __init__(self, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+    
+    @abc.abstractmethod
+    def var_names(self):
+        pass
+
+    @abc.abstractmethod
+    def ratio(self, size=1, **kwargs):
+        return np.random.normal(2.0, 0.5, size=size )
 
 def _lognormal_icdf(logmu, sigma, Mmin=1e-2, Mmax=1e8, n_grid=4096):
     """
@@ -382,11 +395,19 @@ class GCMFVillegas(GaussianGCLF):
 
 
 class GCHaloModel:
-    def __init__(self, occupation_model, mass_model, gclf_model, nimbus_model, seed=None):
+    def __init__(self,
+                 occupation_model,
+                 mass_model,
+                 gclf_model,
+                 nimbus_model, 
+                 mass_to_light_ratio_model,
+                 seed=None):
+        
         self.occupation_model = occupation_model
         self.mass_model = mass_model
         self.gclf_model = gclf_model
         self.nimbus_model = nimbus_model
+        self.mass_to_light_ratio_model = mass_to_light_ratio_model
 
         if seed is not None:
             np.random.seed(seed)
@@ -398,6 +419,7 @@ class GCHaloModel:
             "occupation_model": self.occupation_model.var_names(),
             "mass_model": self.mass_model.var_names(),
             "gclf_model": self.gclf_model.var_names(),
+            "mass_to_light_ratio_model": self.mass_to_light_ratio_model.var_names(),
         }
 
     def generate(self, **kwargs):
@@ -441,6 +463,7 @@ class GCHaloModel:
         gc_masses = self.gclf_model.sample(n_draws)
 
         return True, n_draws, gc_masses
+    
 
 GC_HALO_MODEL = symlib.GalaxyHaloModel(
     symlib.StellarMassModel(symlib.UniverseMachineMStarFit(), symlib.DarkMatterSFH()),
@@ -452,6 +475,16 @@ GC_HALO_MODEL = symlib.GalaxyHaloModel(
     ),
 )
 
+class BaumgardtMassLightRatioModel(GCMassLightRatioModel):
+    def __init__(self, seed=None):
+        super().__init__(seed=seed)
+
+    def ratio(self, size):
+        # samples lognormal distribution
+        mu = 0.62 
+        sigma = 0.27
+        return np.random.lognormal(mean=mu, sigma=sigma, size=size)
+
 class FiducialGCHaloModel(GCHaloModel):
     def __init__(self):
         super().__init__(
@@ -459,4 +492,5 @@ class FiducialGCHaloModel(GCHaloModel):
             mass_model=GCSMassLinearModel(),
             gclf_model=GCMFGeorgiev(),
             nimbus_model=GC_HALO_MODEL,
+            mass_to_light_ratio_model=BaumgardtMassLightRatioModel(),
         )

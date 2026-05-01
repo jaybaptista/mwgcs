@@ -1,4 +1,4 @@
-from mwgcs import SymphonyInterface, FiducialGCHaloModel, GChords, SymphonyPotential, FiducialMassLossModel
+from gchords import SymphonyInterface, FiducialGCHaloModel, GChords, SymphonyPotential, FiducialMassLossModel
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt 
