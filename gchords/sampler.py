@@ -88,19 +88,9 @@ class GCLuminosityFunction(abc.ABC):
     def sample(self, n_draws, **kwargs):
         pass
 
-
-class GCMassLightRatioModel(abc.ABC):
-    def __init__(self, seed=None):
-        if seed is not None:
-            np.random.seed(seed)
-    
     @abc.abstractmethod
-    def var_names(self):
+    def set_halo_mass(self, halo_mass, seed=None):
         pass
-
-    @abc.abstractmethod
-    def ratio(self, size=1, **kwargs):
-        return np.random.normal(2.0, 0.5, size=size )
 
 def _lognormal_icdf(logmu, sigma, Mmin=1e-2, Mmax=1e8, n_grid=4096):
     """
@@ -152,32 +142,41 @@ def _lognormal_icdf(logmu, sigma, Mmin=1e-2, Mmax=1e8, n_grid=4096):
 
 
 class GaussianGCLF(GCLuminosityFunction):
-    def __init__(self, mu=-7.0, sigma=1.0, M_sun=5.12, ml_ratio=2.0, seed=None):
+    def __init__(self, mu=-7.0, sigma=1.0, M_sun=5.12, log_ml=0.69, log_ml_sigma=0.0, seed=None):
         """
         Generic Gaussian GCLF
         """
 
         super().__init__(seed=seed)
 
-        self.mu = mu
-        self.sigma = sigma
-        self.M_sun = M_sun
-        self.ml_ratio = ml_ratio
+        # The luminosity function is defined in magnitudes
+        self.mu = mu # mean magnitude
+        self.sigma = sigma # sd of magnitude dist
+        self.M_sun = M_sun # absolute magnitude of the sun in the same band as mu
+        self.log_ml = log_ml
+        self.log_ml_sigma = log_ml_sigma
 
-        # converting to mass
-        C = M_sun + 2.5 * np.log10(ml_ratio)
-        self.M_mu = 10 ** ((C - mu) / 2.5)
-        self.sigma_M = sigma / 2.5
-        self.mean_mass = self.M_mu * np.exp(0.5 * (np.log(10) * self.sigma_M) ** 2)
-
+        log_M_star, sigma_logM, mean_mass = self.compute_mass_parameters(mu, sigma, log_ml, log_ml_sigma)
+        self.mean_mass = mean_mass
+        self.sigma_M = sigma_logM
+        
         # precompute the inverse CDF for sampling
-        self.icdf = _lognormal_icdf(np.log10(self.M_mu), self.sigma_M)
+        self.icdf = _lognormal_icdf(log_M_star, self.sigma_M)
 
         self.kind = None  # Kind of dependence of the GCLF parameters
         self.evolving = False  # Whether the GCLF parameters evolve over redshift
 
     def var_names(self):
-        return ['mu', 'sigma', 'M_sun', 'ml_ratio']
+        return ['mu', 'sigma', 'M_sun', 'log_ml', 'log_ml_sigma']
+    
+    def compute_mass_parameters(self, mu, sigma, log_ml, log_ml_sigma):
+        log_L_star = - mu / 2.5 + self.M_sun / 2.5 # turnover luminosity
+        sigma_logL = sigma / 2.5
+
+        log_M_star = log_L_star + log_ml        
+        sigma_logM = np.sqrt(sigma_logL**2 + log_ml_sigma**2)
+        mean_mass = 10**(log_M_star) * np.exp(0.5 * (np.log(10) * sigma_logM) ** 2)
+        return log_M_star, sigma_logM, mean_mass
 
     def sample_mag(self, n_draws):
         """
@@ -326,7 +325,7 @@ GC luminosity functions
 
 
 class GCMFGeorgiev(GaussianGCLF):
-    def __init__(self, mass_light_ratio=1.98, seed=None):
+    def __init__(self, log_ml=0.69, log_ml_sigma=0.0, seed=None):
         """
         Implementation of the GCMF from Georgiev+2009
         Source: https://ui.adsabs.harvard.edu/abs/2009MNRAS.392..879G/abstract
@@ -337,12 +336,12 @@ class GCMFGeorgiev(GaussianGCLF):
         V_sun = 4.80
 
         super().__init__(
-            mu=mu_V, sigma=sigma_V, M_sun=V_sun, ml_ratio=mass_light_ratio, seed=seed
+            mu=mu_V, sigma=sigma_V, M_sun=V_sun, log_ml=log_ml, log_ml_sigma=log_ml_sigma, seed=seed
         )
 
 
 class GCMFElves(GaussianGCLF):
-    def __init__(self, mass_light_ratio=1.98, seed=None):
+    def __init__(self, log_ml=0.69, log_ml_sigma=0.0, seed=None):
         """
         Implementation of the GCMF from ELVES (Carlsten+22a; https://www.arxiv.org/abs/2105.03440).
         """
@@ -351,21 +350,21 @@ class GCMFElves(GaussianGCLF):
         g_sun = 5.05
 
         super().__init__(
-            mu=mu_g, sigma=sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio, seed=seed
+            mu=mu_g, sigma=sigma_g, M_sun=g_sun, log_ml=log_ml, log_ml_sigma=log_ml_sigma, seed=seed
         )
 
 
 class GCMFVillegas(GaussianGCLF):
-    def __init__(self, halo_mass, mass_light_ratio=1.98, seed=None):
+    def __init__(self, halo_mass=1e12, log_ml=0.297, log_ml_sigma=0.0, seed=None):
         """
         Implementation of the GCMF from Villegas+2010, which depends on galaxy mass
         """
         self.kind = "halo"
-        mu_g = self._mu_g(np.log10(halo_mass), seed=seed)
-        sigma_g = self._sigma_g(np.log10(halo_mass), seed=seed)
+        mu_g = self._mu_g(halo_mass, seed=seed)
+        sigma_g = self._sigma_g(halo_mass, seed=seed)
         g_sun = 5.05
         super().__init__(
-            mu=mu_g, sigma=sigma_g, M_sun=g_sun, ml_ratio=mass_light_ratio, seed=seed
+            mu=mu_g, sigma=sigma_g, M_sun=g_sun, log_ml=log_ml, log_ml_sigma=log_ml_sigma, seed=seed
         )
         self.kind = "halo"
 
@@ -392,7 +391,15 @@ class GCMFVillegas(GaussianGCLF):
         sqrtV = 0.15
         scatter = np.random.normal(0, 1) * sqrtV
         return y0 + m * (np.log10(mpeak) - x0) + scatter
-
+    
+    def set_halo_mass(self, halo_mass, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        self.mu = self._mu_g(halo_mass, seed=seed)
+        self.sigma = self._sigma_g(halo_mass, seed=seed)
+        log_M_star, sigma_logM, mean_mass = self.compute_mass_parameters(self.mu, self.sigma, self.log_ml, self.log_ml_sigma)
+        self.mean_mass = mean_mass
+        self.icdf = _lognormal_icdf(log_M_star, sigma_logM)
 
 class GCHaloModel:
     def __init__(self,
@@ -451,6 +458,10 @@ class GCHaloModel:
 
         if gc_mass <= 0:
             return True, 0, None
+        
+        if self.gclf_model.kind == "halo":
+            # update GCLF parameters
+            self.gclf_model.set_halo_mass(halo_mass)
 
         lam = gc_mass / self.gclf_model.mean_mass
 
@@ -475,22 +486,11 @@ GC_HALO_MODEL = symlib.GalaxyHaloModel(
     ),
 )
 
-class BaumgardtMassLightRatioModel(GCMassLightRatioModel):
-    def __init__(self, seed=None):
-        super().__init__(seed=seed)
-
-    def ratio(self, size):
-        # samples lognormal distribution
-        mu = 0.62 
-        sigma = 0.27
-        return np.random.lognormal(mean=mu, sigma=sigma, size=size)
-
 class FiducialGCHaloModel(GCHaloModel):
     def __init__(self):
         super().__init__(
             occupation_model=EadieOccupationModel(),
             mass_model=GCSMassLinearModel(),
-            gclf_model=GCMFGeorgiev(),
+            gclf_model=GCMFVillegas(),
             nimbus_model=GC_HALO_MODEL,
-            mass_to_light_ratio_model=BaumgardtMassLightRatioModel(),
         )

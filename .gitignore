@@ -10,5 +10,5 @@
 **/deprecate/
 **/__pycache__/
 */.DS_Store
-mwgcs.egg-info/
+*.egg-info/
 build/
