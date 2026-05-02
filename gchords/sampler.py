@@ -2,6 +2,7 @@ import abc
 import numpy as np
 from scipy.stats import uniform
 from scipy.interpolate import interp1d
+from scipy.stats import lognorm
 import symlib
 from gchords.tag import GlobularClusterRhalf
 
@@ -92,55 +93,8 @@ class GCLuminosityFunction(abc.ABC):
     def set_halo_mass(self, halo_mass, seed=None):
         pass
 
-def _lognormal_icdf(logmu, sigma, Mmin=1e-2, Mmax=1e8, n_grid=4096):
-    """
-    Returns the interpolated inverse CDF for the PDF of
-    the form:
-
-    dN/dM = [1/(ln 10 * M)] * [1/(sqrt(2π) * σ_M)] *
-              exp( - (log10 M - μ)^2 / (2 σ_M^2) )
-
-    NOTE: logmu is the mean of the distribution in log10
-    """
-    M = np.logspace(np.log10(Mmin), np.log10(Mmax), n_grid)
-    x = np.log10(M)
-
-    norm = np.log(10) * M * (np.sqrt(2 * np.pi) * sigma)
-    pdf = np.exp(-0.5 * ((x - logmu) / sigma) ** 2) / norm
-    pdf = np.clip(pdf, 0.0, np.inf)
-
-    # Integrate with trapezoid rule to get CDF
-    cdf = np.zeros_like(M)
-    cdf[1:] = np.cumsum(0.5 * (pdf[1:] + pdf[:-1]) * np.diff(M))
-
-    total = cdf[-1]
-    if not np.isfinite(total) or total <= 0:
-        raise ValueError("PDF integral is non-positive over the chosen range.")
-    cdf /= total
-
-    # Ensure strict monotonicity (protect against flat tails)
-    cdf = np.maximum.accumulate(cdf)
-    cdf[-1] = 1.0
-
-    # Build inverse CDF via interpolation
-    icdf_interp = interp1d(
-        cdf,
-        M,
-        kind="linear",
-        bounds_error=False,
-        fill_value=(Mmin, Mmax),
-        assume_sorted=True,
-    )
-
-    # define function
-    def icdf(u):
-        u = np.asarray(u, dtype=float)
-        u = np.clip(u, 0.0, 1.0)
-        return icdf_interp(u)
-
-    return icdf
-
-
+def _lognormal_icdf(logmu, sigma):
+    return lognorm(s=sigma * np.log(10), scale=10**logmu).ppf
 class GaussianGCLF(GCLuminosityFunction):
     def __init__(self, mu=-7.0, sigma=1.0, M_sun=5.12, log_ml=0.69, log_ml_sigma=0.0, seed=None):
         """
