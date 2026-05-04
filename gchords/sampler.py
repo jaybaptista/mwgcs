@@ -96,7 +96,7 @@ class GCLuminosityFunction(abc.ABC):
 def _lognormal_icdf(logmu, sigma):
     return lognorm(s=sigma * np.log(10), scale=10**logmu).ppf
 class GaussianGCLF(GCLuminosityFunction):
-    def __init__(self, mu=-7.0, sigma=1.0, M_sun=5.12, log_ml=0.69, log_ml_sigma=0.0, seed=None):
+    def __init__(self, mu=-7.0, sigma=1.0, M_sun=5.12, log_ml=0.3, log_ml_sigma=0.0, seed=None):
         """
         Generic Gaussian GCLF
         """
@@ -279,7 +279,7 @@ GC luminosity functions
 
 
 class GCMFGeorgiev(GaussianGCLF):
-    def __init__(self, log_ml=0.69, log_ml_sigma=0.0, seed=None):
+    def __init__(self, log_ml=0.3, log_ml_sigma=0.0, seed=None):
         """
         Implementation of the GCMF from Georgiev+2009
         Source: https://ui.adsabs.harvard.edu/abs/2009MNRAS.392..879G/abstract
@@ -295,7 +295,7 @@ class GCMFGeorgiev(GaussianGCLF):
 
 
 class GCMFElves(GaussianGCLF):
-    def __init__(self, log_ml=0.69, log_ml_sigma=0.0, seed=None):
+    def __init__(self, log_ml=0.3, log_ml_sigma=0.0, seed=None):
         """
         Implementation of the GCMF from ELVES (Carlsten+22a; https://www.arxiv.org/abs/2105.03440).
         """
