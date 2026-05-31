@@ -4,9 +4,8 @@ from scipy.stats import uniform
 from scipy.interpolate import interp1d
 from scipy.stats import lognorm
 import symlib
+from scipy.stats import norm
 from gchords.tag import GlobularClusterRhalf
-
-# TODO: kwargs
 
 """
 Mass-to-light ratios are taken from N-body modeling of globular clusters:
@@ -93,8 +92,23 @@ class GCLuminosityFunction(abc.ABC):
     def set_halo_mass(self, halo_mass, seed=None):
         pass
 
+class MassLightRatioModel(abc.ABC):
+    def __init__(self, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        
+    @abc.abstractmethod
+    def var_names(self):
+        pass
+
+    @abc.abstractmethod
+    def sample(self, n_draws):
+        pass
+
+
 def _lognormal_icdf(logmu, sigma):
     return lognorm(s=sigma * np.log(10), scale=10**logmu).ppf
+
 class GaussianGCLF(GCLuminosityFunction):
     def __init__(self, mu=-7.0, sigma=1.0, M_sun=5.12, log_ml=0.3, log_ml_sigma=0.0, seed=None):
         """
@@ -144,6 +158,61 @@ class GaussianGCLF(GCLuminosityFunction):
         """
         u = np.random.uniform(0, 1, size=n_draws)
         return self.icdf(u)
+
+class FlexibleMassLightRatioGCLF(GCLuminosityFunction):
+    '''
+    This luminosity function class samples GC masses and luminosities by:
+
+    1. sampling a distribution of mean and variances of the GCMF for each specified halo mass
+    2. sampling GC masses from the distribution defined by the two random variables (defined in the last step)
+    3. samples an empirical M/L ratio distribution to assign luminosities
+
+    '''
+    def __init__(self, ml_model=None, seed=None):
+        super().__init__(seed=seed)
+        self.ml_model = ml_model if ml_model is not None else GChordsMassLightRatioModel()
+
+        # parameters are fit simultaneously with the GChordsMassLightRatioModel model
+        # describe Gaussian distributions in log10(M) and log10(sigma)
+        self.gcmf_mean_mu = 5.22
+        self.gcmf_mean_scale = 0.02
+        self.gcmf_std_mu = 0.33
+        self.gcmf_std_scale = 0.19
+
+        self.set_sampler()
+
+    def var_names(self):
+        return ['ml_model']
+
+    def set_halo_mass(self, halo_mass, seed=None):
+        pass
+
+    def set_sampler(self):
+        # sample the GCMF parameter random variables
+        self.mass_mu = np.random.normal(loc=self.gcmf_mean_mu, scale=self.gcmf_mean_scale)
+        self.mass_sigma = abs(np.random.normal(loc=self.gcmf_std_mu, scale=self.gcmf_std_scale))
+
+        # sample GC masses from the lognormal GCMF
+        self.icdf = _lognormal_icdf(self.mass_mu, self.mass_sigma)
+
+        self.mean_mass = 10**self.mass_mu * np.exp(0.5 * (np.log(10) * self.mass_sigma) ** 2)
+
+
+    def sample(self, n_draws, return_L=False, **kwargs):
+        """
+        Samples masses from the GCLF
+        """
+
+        u = np.random.uniform(0, 1, size=n_draws)
+        masses = self.icdf(u)
+
+        if return_L:
+            # sample log M/L ratios and convert masses to luminosities
+            log_ml = self.ml_model.sample(n_draws)
+            luminosities = masses / (10 ** log_ml)
+            return masses, luminosities
+
+        return masses
 
 
 """
@@ -316,7 +385,7 @@ class GCMFVillegas(GaussianGCLF):
         self.kind = "halo"
         mu_g = self._mu_g(halo_mass, seed=seed)
         sigma_g = self._sigma_g(halo_mass, seed=seed)
-        g_sun = 5.05
+        g_sun = 5.09 # HST F475W
         super().__init__(
             mu=mu_g, sigma=sigma_g, M_sun=g_sun, log_ml=log_ml, log_ml_sigma=log_ml_sigma, seed=seed
         )
@@ -354,6 +423,47 @@ class GCMFVillegas(GaussianGCLF):
         log_M_star, sigma_logM, mean_mass = self.compute_mass_parameters(self.mu, self.sigma, self.log_ml, self.log_ml_sigma)
         self.mean_mass = mean_mass
         self.icdf = _lognormal_icdf(log_M_star, sigma_logM)
+
+class BaumgardtMassLightRatioModel(MassLightRatioModel):
+    '''
+    '''
+    def __init__(self):
+        self.mu1 = 0.62
+        self.mu2 = 0.2
+        self.sigma1 = 0.69
+        self.sigma2 = 0.88
+        self.w = 0.91
+
+    def pdf(self, y):
+        p1 = self.w * norm.pdf(y, loc=self.mu1, scale=self.sigma1)
+        p2 = (1 - self.w) * norm.pdf(y, loc=self.mu2, scale=self.sigma2)
+        return p1 + p2
+
+    def sample(self, n_draws=1):
+
+        # first choose which Gaussian to sample from
+        component = np.random.choice([0, 1], size=n_draws)
+        
+        # then sample from that Gaussian
+        samples = np.where(
+            component == 0,
+            np.random.normal(self.mu1, self.sigma1, size=n_draws),
+            np.random.normal(self.mu2, self.sigma2, size=n_draws)
+        )
+
+        return samples  
+    
+    def var_names(self):
+        return super().var_names()
+
+class GChordsMassLightRatioModel(BaumgardtMassLightRatioModel):
+    
+    def __init__(self):
+        self.mu1 = 0.612
+        self.mu2 = 0.67
+        self.sigma1 = 0.173
+        self.sigma2 = 0.586
+        self.w = 0.864
 
 class GCHaloModel:
     def __init__(self,

@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
 # from distutils.core import setup
-from Cython.Build import cythonize
-from setuptools import setup, Extension
+from setuptools import setup
 import numpy as np
 
 setup(
@@ -19,7 +18,7 @@ setup(
         "asdf",
         "h5py",
         "symlib",
-        "astropy"
+        "astropy",
     ],
     include_dirs=[np.get_include()]
 )
