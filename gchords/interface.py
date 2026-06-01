@@ -80,6 +80,12 @@ class SymphonyInterface(Interface):
     def get_gse_index(self):
         '''
         returns the GSE halo based on the Buch+2024 (https://arxiv.org/abs/2404.08043) criteria
+
+        A GSE analog subhalo that merges with the MW host
+        between 0.25 < adisrupt < 0.6 (i.e., 0.67 < zdisrupt < 3
+        or between 6 and 11.5 Gyr ago) with Msub/Mhost > 0.2
+        when the GSE analog achieves its peak mass (e.g.,
+        Helmi 2020; Naidu et al. 2021).
         '''
 
         candidates = np.zeros(len(self.infall_properties["infall_snapshot"]), dtype=bool)
@@ -88,6 +94,13 @@ class SymphonyInterface(Interface):
         infall_redshifts = 1 / self.scale_factors[self.infall_properties["infall_snapshot"]] - 1
         candidates &= (self.infall_properties["infall_snapshot"] >= 0) & (self.infall_properties["infall_snapshot"] < len(self.scale_factors))
         candidates &= (infall_redshifts > 0.67) & (infall_redshifts < 3.0)
+
+        # mass ratio condition: Msub/Mhost > 0.2 at the snapshot of peak subhalo mass
+        masked_masses = np.where(self.rs["ok"], self.rs["m"], 0.0)
+        peak_snaps = np.argmax(masked_masses, axis=1)
+        mpeaks = masked_masses[np.arange(len(peak_snaps)), peak_snaps]
+        mhost_at_peak = self.rs["m"][0, peak_snaps]
+        candidates &= (mpeaks / np.where(mhost_at_peak > 0, mhost_at_peak, np.inf)) > 0.2
 
         if np.any(candidates):
             gse_index = np.where(candidates)[0][np.argmax(self.infall_properties["halo_mass"][candidates])]

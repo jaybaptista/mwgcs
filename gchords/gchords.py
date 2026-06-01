@@ -62,19 +62,19 @@ class GChords(object):
 
             mp = self.weights[k]['mp']
 
-            p = self.interface.particles.read(infall_snapshots[k], mode='stars')
-            ok = p[k]['ok']
+            # TODO: Put this back in, I took this out because it runs too slow?
+            # p = self.interface.particles.read(infall_snapshots[k], mode='stars')
+            # ok = p[k]['ok']
+            # set not 'ok' weights to 0
+            # mp[~ok] = 0.0
             
-            # TODO: look carefulely at this.
-            # TODO: Ensure that the selected stars are 'ok' particles 
             # e.g., if there aren't enough particles 
-            if np.sum(mp[ok]) <= 0.0:
+            if np.sum(mp) <= 0.0:
                 # if I can't draw a particle tag, then I can't assign a GC, so skip this halo.
                 # NOTE: this may set a resolution floor for GC formation
                 continue
             
-            # set not 'ok' weights to 0
-            mp[~ok] = 0.0
+            
 
             p_draw = mp / np.sum(mp)
             draws = np.random.choice(len(mp), size=len(_mgcs), replace=False, p=p_draw)
