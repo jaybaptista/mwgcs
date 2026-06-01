@@ -85,7 +85,7 @@ class GCLuminosityFunction(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def sample(self, n_draws, **kwargs):
+    def sample(self, n_draws, return_L=False, **kwargs):
         pass
 
     @abc.abstractmethod
@@ -152,12 +152,22 @@ class GaussianGCLF(GCLuminosityFunction):
         """
         return np.random.normal(self.mu, self.sigma, size=n_draws)
 
-    def sample(self, n_draws, **kwargs):
+    def sample(self, n_draws, return_L=False, **kwargs):
         """
         Samples masses from the GCLF
         """
         u = np.random.uniform(0, 1, size=n_draws)
-        return self.icdf(u)
+        masses = self.icdf(u)
+
+        if return_L:
+            if self.log_ml_sigma > 0:
+                log_ml = np.random.normal(self.log_ml, self.log_ml_sigma, size=n_draws)
+            else:
+                log_ml = self.log_ml
+            luminosities = masses / (10 ** log_ml)
+            return masses, luminosities
+
+        return masses
 
 class FlexibleMassLightRatioGCLF(GCLuminosityFunction):
     '''
@@ -495,7 +505,7 @@ class GCHaloModel:
 
     def generate(self, **kwargs):
         """
-        Returns a tuple (bool: has_gc, int: gc_count, list: gc_masses)
+        Returns a tuple (bool: has_gc, int: gc_count, list: gc_masses, list: gc_luminosities)
         """
 
         halo_mass = kwargs.get("halo_mass")
@@ -514,15 +524,15 @@ class GCHaloModel:
         )
 
         if not has_gc:
-            return False, 0, []
+            return False, 0, [], []
 
         gc_mass = self.mass_model.mass(
             halo_mass if self.mass_model.kind == "halo" else stellar_mass
         )
 
         if gc_mass <= 0:
-            return True, 0, None
-        
+            return True, 0, None, None
+
         if self.gclf_model.kind == "halo":
             # update GCLF parameters
             self.gclf_model.set_halo_mass(halo_mass)
@@ -531,13 +541,13 @@ class GCHaloModel:
 
         if lam <= 0 or np.isnan(lam):
             print(f"ERROR: gc_mass / mean_gc_mass = {lam}")
-            return True, 0, None
+            return True, 0, None, None
 
         n_draws = np.random.poisson(lam)
 
-        gc_masses = self.gclf_model.sample(n_draws)
+        gc_masses, gc_luminosities = self.gclf_model.sample(n_draws, return_L=True)
 
-        return True, n_draws, gc_masses
+        return True, n_draws, gc_masses, gc_luminosities
     
 
 GC_HALO_MODEL = symlib.GalaxyHaloModel(

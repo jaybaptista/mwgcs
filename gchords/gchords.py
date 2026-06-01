@@ -39,6 +39,7 @@ class GChords(object):
                     "infall_snap",
                     "disrupt_snap",
                     "gc_mass",
+                    "gc_lum",
                     "preinfall_host_idx",
                     "nimbus_index",
                     "feh",
@@ -50,7 +51,7 @@ class GChords(object):
         rows = []
 
         for k in np.arange(1, n_halos):
-            _, _, _mgcs = self.gc_halo_model.generate(
+            _, _, _mgcs, _lgcs = self.gc_halo_model.generate(
                 halo_mass=self.interface.infall_properties["halo_mass"][k],
                 stellar_mass=self.interface.infall_properties["stellar_mass"][k],
             )
@@ -61,7 +62,7 @@ class GChords(object):
 
             mp = self.weights[k]['mp']
 
-            p = self.interface.read(infall_snapshots[k], mode='stars')
+            p = self.interface.particles.read(infall_snapshots[k], mode='stars')
             ok = p[k]['ok']
             
             # TODO: look carefulely at this.
@@ -90,6 +91,7 @@ class GChords(object):
                             len(_mgcs),
                         ),
                         "gc_mass": _mgcs,
+                        "gc_lum": _lgcs,
                         "preinfall_host_idx": np.repeat(
                             self.interface.infall_properties["preinfall_host_idx"][k],
                             len(_mgcs),
